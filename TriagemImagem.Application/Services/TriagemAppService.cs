@@ -81,11 +81,11 @@ public class TriagemAppService : ITriagemAppService
         // 6. Atualização do status do Exame conforme Semáforo Clínico
         if (avaliacao.BloqueiaExame)
         {
-            exame.Status = StatusExame.CANCELADO;
+            exame.Status = StatusExame.BLOQUEADO_SEGURANCA;
         }
         else
         {
-            exame.Status = StatusExame.LIBERADO_PARA_EXECUCAO;
+            exame.Status = StatusExame.LIBERADO;
         }
 
         await _triagemRepository.SalvarAsync(formulario);
@@ -170,7 +170,7 @@ public class TriagemAppService : ITriagemAppService
         if (triagem?.StatusRisco == StatusRiscoSemaforo.VERMELHO)
             throw new DomainException("Não é permitido liberar para execução um exame com Semáforo Vermelho (Contraindicação clínica impeditiva).");
 
-        exame.Status = StatusExame.LIBERADO_PARA_EXECUCAO;
+        exame.Status = StatusExame.LIBERADO;
         await _exameRepository.AtualizarAsync(exame);
         await _exameRepository.SalvarAlteracoesAsync();
 
@@ -190,7 +190,7 @@ public class TriagemAppService : ITriagemAppService
         var exame = await _exameRepository.ObterPorIdAsync(exameId);
         if (exame == null) return false;
 
-        exame.Status = StatusExame.CANCELADO;
+        exame.Status = StatusExame.BLOQUEADO_SEGURANCA;
         await _exameRepository.AtualizarAsync(exame);
         await _exameRepository.SalvarAlteracoesAsync();
 
@@ -198,8 +198,8 @@ public class TriagemAppService : ITriagemAppService
         {
             UsuarioId = usuarioId,
             ExameId = exameId,
-            TipoEvento = "EXAME_CANCELADO",
-            Detalhes = $"Exame cancelado pelo operador. Motivo: {motivo}"
+            TipoEvento = "EXAME_BLOQUEADO_SEGURANCA",
+            Detalhes = $"Exame BLOQUEADO_SEGURANCA pelo operador. Motivo: {motivo}"
         });
 
         return true;

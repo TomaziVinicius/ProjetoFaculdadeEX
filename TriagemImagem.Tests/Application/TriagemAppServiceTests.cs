@@ -98,7 +98,7 @@ public class TriagemAppServiceTests
         Assert.NotNull(resultado);
         Assert.Equal(StatusRiscoSemaforo.VERDE, resultado.StatusRisco);
         Assert.False(resultado.BloqueiaExame);
-        Assert.Equal(StatusExame.LIBERADO_PARA_EXECUCAO, fakeExameRepo.ExameArmazenado!.Status);
+        Assert.Equal(StatusExame.LIBERADO, fakeExameRepo.ExameArmazenado!.Status);
         Assert.Contains(fakeAuditoriaRepo.Logs, l => l.TipoEvento == "TRIAGEM_CONCLUIDA");
     }
 
@@ -143,7 +143,7 @@ public class TriagemAppServiceTests
         Assert.Equal(StatusRiscoSemaforo.VERMELHO, resultado.StatusRisco);
         Assert.True(resultado.BloqueiaExame);
         Assert.NotEmpty(resultado.MotivosContraindicacao);
-        Assert.Equal(StatusExame.CANCELADO, fakeExameRepo.ExameArmazenado!.Status);
+        Assert.Equal(StatusExame.BLOQUEADO_SEGURANCA, fakeExameRepo.ExameArmazenado!.Status);
         Assert.Contains(fakeAuditoriaRepo.Logs, l => l.TipoEvento == "TRIAGEM_CONTRAINDICADA");
     }
 
