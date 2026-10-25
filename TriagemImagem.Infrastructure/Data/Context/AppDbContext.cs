@@ -20,11 +20,7 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<Usuario>().ToTable("usuarios");
-        modelBuilder.Entity<Paciente>().ToTable("pacientes");
-        modelBuilder.Entity<Exame>().ToTable("exames");
-        modelBuilder.Entity<FormularioTriagem>().ToTable("formularios_triagem");
-        modelBuilder.Entity<ItemRespostaTriagem>().ToTable("itens_resposta_triagem");
-        modelBuilder.Entity<AuditoriaLog>().ToTable("auditoria_logs");
+        // Aplica todas as configurações Fluent API da pasta Configurations automaticamente
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
 }

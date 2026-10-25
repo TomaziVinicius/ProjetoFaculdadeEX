@@ -1,11 +1,48 @@
+using Microsoft.EntityFrameworkCore;
+using TriagemImagem.Infrastructure.Data.Context;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Adiciona serviços da API e Swagger
+// 1. Configuração do Banco de Dados MySQL / MariaDB via Pomelo EF Core
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+    ?? "Server=localhost;Port=3306;Database=triagem_imagem_db;User=root;Password=;TreatTinyAsBoolean=true;";
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+{
+    try
+    {
+        var serverVersion = ServerVersion.AutoDetect(connectionString);
+        options.UseMySql(connectionString, serverVersion);
+    }
+    catch
+    {
+        // Caso o MySQL ainda não esteja iniciado no momento da inicialização
+        options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 36)));
+    }
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// 2. Auto-criação e Carga Inicial (Seed) do Banco de Dados
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>();
+        context.Database.EnsureCreated();
+        DbSeeder.Seed(context);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "Aviso: Banco MySQL local não conectado no momento. Inicie o serviço MySQL para aplicar a persistência.");
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {
