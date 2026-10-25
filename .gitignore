@@ -1,0 +1,34 @@
+## Build & Output directories
+bin/
+obj/
+out/
+build/
+dist/
+
+## Visual Studio & VS Code
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.idea/
+*.swp
+
+## Environment & Secrets
+.env
+.env.*
+!.env.example
+appsettings*.local.json
+
+## Logs & Cache
+*.log
+logs/
+.angular/
+node_modules/
+npm-debug.log*
+
+## OS specific
+.DS_Store
+Thumbs.db
+desktop.ini

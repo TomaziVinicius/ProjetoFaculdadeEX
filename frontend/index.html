@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Triagem para Diagnóstico por Imagem</title>
+  <meta name="description" content="Estrutura inicial do Sistema de Triagem para Diagnóstico por Imagem sob Onion Architecture.">
+
+  <!-- Google Fonts: Inter, Outfit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    rel="stylesheet">
+
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Estilos Globais -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+  <!-- Efeitos Luminosos de Fundo (Glow) -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+  <div class="bg-grid-overlay"></div>
+
+  <!-- =========================================================================
+       1. TELA DE LOGIN OBRIGATÓRIA (INSPIRADA NO LAUDOS-OIT)
+       ========================================================================= -->
+  <div id="login-screen" class="login-gate-screen">
+    <div class="glass-panel login-gate-card">
+      <div class="login-theme-toggle">
+        <button type="button" class="btn-theme-toggle" id="btnToggleTheme" title="Alternar Tema">
+          <i class="fa-solid fa-moon" id="themeIcon"></i>
+        </button>
+      </div>
+
+      <div class="login-gate-brand">
+        <div class="login-logo-badge">
+          <i class="fa-solid fa-x-ray"></i>
+        </div>
+        <h1 class="login-title">Triagem <span>Imagem</span></h1>
+        <p class="login-subtitle">Sistema de Triagem Clínica para TC e RM</p>
+      </div>
+
+      <form id="form-login" onsubmit="event.preventDefault(); acessarSistema();">
+        <div class="form-field">
+          <label class="form-label" for="login-user">
+            <i class="fa-solid fa-user"></i> Identificação do Operador
+          </label>
+          <div class="input-icon-wrapper">
+            <i class="fa-solid fa-id-badge input-icon"></i>
+            <input type="text" id="login-user" class="form-input" placeholder="Ex: biomedico ou tecnico" value="lucas.biomed" required>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="login-pass">
+            <i class="fa-solid fa-lock"></i> Senha de Acesso
+          </label>
+          <div class="input-icon-wrapper">
+            <i class="fa-solid fa-key input-icon"></i>
+            <input type="password" id="login-pass" class="form-input" placeholder="Digite sua senha" value="123456" required>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-login-submit">
+          <i class="fa-solid fa-right-to-bracket"></i> Acessar Posto de Triagem
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       2. ESTRUTURA PRINCIPAL DO SISTEMA (WORKLIST SHELL)
+       ========================================================================= -->
+  <div id="app-shell" class="app-layout hidden">
+    <aside class="app-sidebar">
+      <div>
+        <div class="sidebar-brand">
+          <div class="brand-badge">
+            <i class="fa-solid fa-wave-square"></i>
+          </div>
+          <div>
+            <div class="brand-title">Triagem <span>Imagem</span></div>
+            <div class="brand-tag">Posto Clínico TC / RM</div>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <span class="nav-label">Operação</span>
+          <button type="button" class="sidebar-nav-item active">
+            <i class="fa-solid fa-list-check"></i>
+            <span>Grade de Exames</span>
+          </button>
+          <button type="button" class="sidebar-nav-item">
+            <i class="fa-solid fa-file-medical"></i>
+            <span>Ficha de Triagem</span>
+          </button>
+
+          <span class="nav-label">Auditoria</span>
+          <button type="button" class="sidebar-nav-item">
+            <i class="fa-solid fa-clipboard-check"></i>
+            <span>Logs Operacionais</span>
+          </button>
+        </nav>
+      </div>
+
+      <div>
+        <button type="button" class="btn btn--primary" style="width: 100%;" onclick="sairSistema()">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i> Sair
+        </button>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <h2 class="topbar-title">Grade de Atendimentos do Dia</h2>
+        <button type="button" class="btn-theme-toggle" id="btnToggleThemeTop" title="Alternar Tema">
+          <i class="fa-solid fa-moon"></i>
+        </button>
+      </header>
+
+      <main class="content-area">
+        <div class="glass-panel" style="padding: 24px;">
+          <h3 style="font-family: var(--font-title); font-size: 1.15rem; margin-bottom: 8px;">
+            Estrutura Inicial do Frontend Concluída
+          </h3>
+          <p style="color: var(--text-secondary);">
+            A carcaça ergonômica baseada no design do <code>laudos-oit</code> foi configurada com sucesso. Os módulos da Worklist, Checklist de Aviação e Semáforo Clínico serão integrados gradualmente nas próximas etapas.
+          </p>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+
+</html>
