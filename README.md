@@ -15,7 +15,6 @@ TriagemImagem.sln
 │   ├── Controllers/             # Endpoints HTTP/RESTful (/api/v1/...)
 │   ├── Middlewares/             # Tratamento global de erros e auditoria
 │   ├── Extensions/              # Injeção de dependências e extensões de configuração
-│   ├── wwwroot/                 # Frontend estático entregue pela API
 │   └── Program.cs               # Configuração do pipeline HTTP e inicialização
 │
 ├── TriagemImagem.Application
