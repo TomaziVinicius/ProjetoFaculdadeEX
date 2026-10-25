@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TriagemImagem.Application.Extensions;
 using TriagemImagem.Infrastructure.Data.Context;
 using TriagemImagem.Infrastructure.Extensions;
 
@@ -26,8 +27,9 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// 2. Registro dos Repositórios e Serviços de Domínio
+// 2. Registro dos Repositórios e Serviços de Domínio e Aplicação
 builder.Services.AddInfrastructureRepositories();
+builder.Services.AddApplicationServices();
 
 var app = builder.Build();
 
