@@ -47,6 +47,28 @@ public class ExameRepository : IExameRepository
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<Exame>> ListarTodosAsync(ModalidadeExame? modalidade = null, StatusExame? status = null)
+    {
+        var query = _context.Exames
+            .Include(e => e.Paciente)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (modalidade.HasValue)
+        {
+            query = query.Where(e => e.Modalidade == modalidade.Value);
+        }
+
+        if (status.HasValue)
+        {
+            query = query.Where(e => e.Status == status.Value);
+        }
+
+        return await query
+            .OrderBy(e => e.HorarioAgendado)
+            .ToListAsync();
+    }
+
     public async Task<IEnumerable<Exame>> BuscarAsync(string? termoBusca, DateTime? data = null)
     {
         var query = _context.Exames

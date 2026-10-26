@@ -24,12 +24,11 @@ public class WorklistAppService : IWorklistAppService
 
     public async Task<IEnumerable<ExameWorklistDto>> ObterWorklistAsync(FiltroWorklistDto filtro)
     {
-        var dataAlvo = filtro.Data ?? DateTime.Today;
         IEnumerable<Exame> exames;
 
         if (!string.IsNullOrWhiteSpace(filtro.TermoBusca))
         {
-            exames = await _exameRepository.BuscarAsync(filtro.TermoBusca, dataAlvo);
+            exames = await _exameRepository.BuscarAsync(filtro.TermoBusca, filtro.Data);
             if (filtro.Modalidade.HasValue)
             {
                 exames = exames.Where(e => e.Modalidade == filtro.Modalidade.Value);
@@ -39,9 +38,19 @@ public class WorklistAppService : IWorklistAppService
                 exames = exames.Where(e => e.Status == filtro.Status.Value);
             }
         }
+        else if (filtro.Data.HasValue)
+        {
+            exames = await _exameRepository.ListarDoDiaAsync(filtro.Data.Value, filtro.Modalidade, filtro.Status);
+        }
         else
         {
-            exames = await _exameRepository.ListarDoDiaAsync(dataAlvo, filtro.Modalidade, filtro.Status);
+            // Sem data especificada: primeiro busca os exames de hoje
+            exames = await _exameRepository.ListarDoDiaAsync(DateTime.Today, filtro.Modalidade, filtro.Status);
+            // Se hoje não houver registros (demonstração, virada de dia), traz todos da fila para não sumir
+            if (!exames.Any())
+            {
+                exames = await _exameRepository.ListarTodosAsync(filtro.Modalidade, filtro.Status);
+            }
         }
 
         var resultado = new List<ExameWorklistDto>();

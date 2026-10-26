@@ -87,7 +87,7 @@ const EXAMES_INICIAIS = [
   }
 ];
 
-// Checklists de Segurança Especializados (Baseados no Instituto de Diagnóstico por Imagem)
+// Checklists de Segurança Especializados (Centro de Diagnóstico por Imagem - UNICIVE)
 const PROTOCOLOS_CHECKLIST = {
   // 1. QUESTIONÁRIO PARA RESSONÂNCIA DA COLUNA (Cervical / Torácica / Lombar)
   RM_COLUNA: [
@@ -181,6 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavegacao();
   initWorklist();
   initCalculadora();
+  initAdminView();
   initAtalhosTeclado();
   verificarConexaoApi();
 });
@@ -279,7 +280,11 @@ function initAutenticacao() {
         showToast('Login inválido.', 'error');
       } else {
         // Fallback offline caso o backend MySQL ainda não tenha sido iniciado
-        const perfil = username.includes('admin') ? 'ADMIN' : (username.includes('tec') ? 'TÉCNICO' : 'BIOMÉDICO');
+        const perfil = username.includes('admin')
+          ? 'ADMIN'
+          : (username.includes('tec')
+            ? 'TÉCNICO'
+            : (username.includes('estagio') ? 'ESTAGIÁRIO' : 'BIOMÉDICO'));
         UIState.usuarioLogado = { id: 1, nome: username, login: username, perfil: perfil };
         entrar(username, perfil);
         showToast('Iniciado em Modo Demonstração Offline.', 'info');
@@ -314,8 +319,39 @@ function entrar(nome, perfil) {
   document.getElementById('sidebarUserName').textContent = nome;
   document.getElementById('sidebarUserRole').textContent = perfil;
 
+  // Atualiza avatar do operador conforme especialidade
+  const avatar = document.getElementById('sidebarAvatar');
+  const perfUpper = (perfil || '').toString().toUpperCase();
+  const isAdmin = perfUpper.includes('ADMIN') || UIState.usuarioLogado.perfil === 4 || UIState.usuarioLogado.perfil === 'ADMIN';
+
+  if (avatar) {
+    if (isAdmin) {
+      avatar.innerHTML = '<i class="fa-solid fa-user-shield"></i>';
+    } else if (perfUpper.includes('ESTAGI')) {
+      avatar.innerHTML = '<i class="fa-solid fa-graduation-cap"></i>';
+    } else if (perfUpper.includes('TEC')) {
+      avatar.innerHTML = '<i class="fa-solid fa-user-nurse"></i>';
+    } else {
+      avatar.innerHTML = '<i class="fa-solid fa-user-doctor"></i>';
+    }
+  }
+
+  // Controle de visibilidade de itens administrativos
+  const navAdmin = document.getElementById('navAdmin');
+  const navLabelAdmin = document.getElementById('navLabelAdmin');
+  if (navAdmin) navAdmin.style.display = isAdmin ? 'flex' : 'none';
+  if (navLabelAdmin) navLabelAdmin.style.display = isAdmin ? 'block' : 'none';
+
+  document.querySelectorAll('.admin-only').forEach(el => {
+    if (isAdmin) el.classList.remove('hidden');
+    else el.classList.add('hidden');
+  });
+
   showToast(`Sessão iniciada como ${nome} (${perfil})`, 'success');
   carregarWorklist();
+  if (isAdmin) {
+    carregarAdminView();
+  }
 }
 
 function sair() {
@@ -354,19 +390,31 @@ function trocarView(viewId) {
   const titulos = {
     'view-worklist': 'Grade de Atendimentos do Dia (Worklist)',
     'view-triagem': 'Ficha de Triagem & Checklist de Segurança',
-    'view-auditoria': 'Histórico Inviolável de Auditoria Clínica'
+    'view-auditoria': 'Histórico Inviolável de Auditoria Clínica',
+    'view-admin': 'Painel de Controle Administrativo (TI & Governança)'
   };
 
   document.getElementById('topbarTitle').textContent = titulos[viewId] || 'Posto de Triagem';
 
   if (viewId === 'view-auditoria') {
     carregarAuditoria();
+  } else if (viewId === 'view-admin') {
+    carregarAdminView();
   }
 }
 
 /* ==============================================================================
    5. WORKLIST (GRADE DE ATENDIMENTOS)
    ============================================================================== */
+function normalizarStatus(statusRaw, statusDescricao) {
+  const desc = (statusDescricao || '').toString().trim().toUpperCase();
+  if (desc === 'LIBERADO' || statusRaw === 3 || statusRaw === '3') return 'LIBERADO';
+  if (desc === 'BLOQUEADO_SEGURANCA' || desc === 'BLOQUEADO' || statusRaw === 4 || statusRaw === '4') return 'BLOQUEADO_SEGURANCA';
+  if (desc === 'EM_TRIAGEM' || statusRaw === 2 || statusRaw === '2') return 'EM_TRIAGEM';
+  if (desc === 'CONCLUIDO' || statusRaw === 5 || statusRaw === '5') return 'CONCLUIDO';
+  return 'AGUARDANDO_TRIAGEM';
+}
+
 function initWorklist() {
   document.getElementById('inputSearchWorklist')?.addEventListener('input', (e) => {
     UIState.buscaTexto = e.target.value.toLowerCase().trim();
@@ -404,9 +452,11 @@ async function carregarWorklist() {
         procedimento: e.descricaoExame || e.procedimento,
         sala: e.sala,
         horario: e.horarioAgendado ? new Date(e.horarioAgendado).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '08:00',
-        status: e.statusDescricao || (e.status === 2 ? 'LIBERADO' : (e.status === 3 ? 'BLOQUEADO_SEGURANCA' : 'AGUARDANDO_TRIAGEM')),
+        status: normalizarStatus(e.status, e.statusDescricao),
         statusRiscoSemaforo: e.statusRiscoSemaforo,
-        possuiTriagem: e.possuiTriagem
+        possuiTriagem: e.possuiTriagem,
+        volumeContrasteMl: e.volumeContrasteMl,
+        caminhoArquivoArmazenado: e.caminhoArquivoArmazenado
       }));
       verificarConexaoApi();
     }
@@ -415,7 +465,20 @@ async function carregarWorklist() {
     verificarConexaoApi();
   }
 
+  // Sincroniza referência do exame atualmente selecionado
+  if (UIState.exameSelecionado) {
+    const sincronizado = UIState.exames.find(x => x.id === UIState.exameSelecionado.id);
+    if (sincronizado) {
+      UIState.exameSelecionado = sincronizado;
+    }
+  }
+
   renderizarWorklist();
+
+  // Se a tabela de exames da aba Admin estiver presente, atualiza-a em sincronia
+  if (document.getElementById('adminExamesTableBody')) {
+    renderizarAdminExames();
+  }
 }
 
 function renderizarWorklist() {
@@ -454,14 +517,25 @@ function renderizarWorklist() {
   tbody.innerHTML = filtrados.map(item => {
     const isLiberado = item.status === 'LIBERADO';
     const isBloqueado = item.status === 'BLOQUEADO_SEGURANCA';
+    const isEmTriagem = item.status === 'EM_TRIAGEM';
 
     const statusBadge = isLiberado
       ? '<span class="badge-status status-liberado"><i class="fa-solid fa-check-circle"></i> Liberado</span>'
       : (isBloqueado
         ? '<span class="badge-status status-bloqueado"><i class="fa-solid fa-ban"></i> Não Permitido (Bloqueado)</span>'
-        : '<span class="badge-status status-aguardando"><i class="fa-solid fa-clock"></i> Aguardando</span>');
+        : (isEmTriagem
+          ? '<span class="badge-status" style="background: rgba(245, 158, 11, 0.2); color: var(--amber-400); border: 1px solid rgba(245, 158, 11, 0.4);"><i class="fa-solid fa-spinner fa-spin"></i> Em Triagem</span>'
+          : '<span class="badge-status status-aguardando"><i class="fa-solid fa-clock"></i> Aguardando</span>'));
 
     const modBadgeClass = item.modalidade === 'TC' ? 'badge-tc' : 'badge-rm';
+    const btnTexto = isLiberado 
+      ? 'Ver Ficha' 
+      : (isBloqueado 
+        ? 'Ver Bloqueio' 
+        : (isEmTriagem ? 'Continuar Triagem' : 'Iniciar Triagem'));
+    const btnIcone = isLiberado 
+      ? 'fa-file-lines' 
+      : (isBloqueado ? 'fa-ban' : 'fa-clipboard-check');
 
     return `
       <tr>
@@ -475,12 +549,11 @@ function renderizarWorklist() {
         </td>
         <td><span class="badge-modalidade ${modBadgeClass}">${item.modalidade}</span></td>
         <td><span style="font-size: 0.88rem;">${item.procedimento}</span></td>
-        <td><span style="font-family: var(--font-mono);">${item.sala}</span></td>
+        <td><span style="font-family: var(--font-mono); font-weight: 700;">${item.sala}</span></td>
         <td>${statusBadge}</td>
         <td style="text-align: right;">
           <button type="button" class="btn-action btn-iniciar-triagem" onclick="abrirTriagem(${item.id})">
-            <i class="fa-solid ${isLiberado ? 'fa-file-lines' : (isBloqueado ? 'fa-ban' : 'fa-clipboard-check')}"></i> 
-            ${isLiberado ? 'Ver Ficha' : (isBloqueado ? 'Ver Bloqueio' : 'Iniciar Triagem')}
+            <i class="fa-solid ${btnIcone}"></i> ${btnTexto}
           </button>
         </td>
       </tr>
@@ -516,6 +589,16 @@ async function abrirTriagem(exameId) {
   UIState.exameSelecionado = item;
   UIState.respostas = {};
 
+  const isConcluidoOuAssinado = item.status === 'LIBERADO' || item.status === 'BLOQUEADO_SEGURANCA';
+
+  // Se o exame estiver aguardando e ainda não foi assinado, transiciona para EM_TRIAGEM
+  if (!isConcluidoOuAssinado && item.status === 'AGUARDANDO_TRIAGEM') {
+    item.status = 'EM_TRIAGEM';
+    if (UIState.online) {
+      ApiClient.chamarPaciente(item.id, UIState.usuarioLogado.id || 1).catch(() => {});
+    }
+  }
+
   // Preenche dados do paciente na tela de triagem
   document.getElementById('triagemPacienteNome').textContent = item.pacienteNome;
   document.getElementById('triagemAtendimentoNum').textContent = item.atendimento;
@@ -530,8 +613,16 @@ async function abrirTriagem(exameId) {
   badgeMod.className = `badge-modalidade ${item.modalidade === 'TC' ? 'badge-tc' : 'badge-rm'}`;
 
   // Calculadora
-  document.getElementById('calcPesoInput').value = item.pesoKg || 70.0;
-  document.getElementById('calcCreatininaInput').value = '';
+  const inputPeso = document.getElementById('calcPesoInput');
+  const inputCreat = document.getElementById('calcCreatininaInput');
+  if (inputPeso) {
+    inputPeso.value = item.pesoKg || 70.0;
+    inputPeso.disabled = isConcluidoOuAssinado;
+  }
+  if (inputCreat) {
+    inputCreat.value = '';
+    inputCreat.disabled = isConcluidoOuAssinado;
+  }
   recalcularDose();
 
   // Renderiza checklist especializado conforme o tipo de formulário do exame
@@ -561,10 +652,10 @@ async function abrirTriagem(exameId) {
         </div>
 
         <div class="btn-choice-group">
-          <button type="button" class="btn-choice" id="btn-nao-${p.codigo}" onclick="definirResposta('${p.codigo}', 'NAO')">
+          <button type="button" class="btn-choice" id="btn-nao-${p.codigo}" ${isConcluidoOuAssinado ? 'disabled style="pointer-events:none;"' : ''} onclick="definirResposta('${p.codigo}', 'NAO')">
             <i class="fa-solid fa-check"></i> NÃO
           </button>
-          <button type="button" class="btn-choice" id="btn-sim-${p.codigo}" onclick="definirResposta('${p.codigo}', 'SIM')">
+          <button type="button" class="btn-choice" id="btn-sim-${p.codigo}" ${isConcluidoOuAssinado ? 'disabled style="pointer-events:none;"' : ''} onclick="definirResposta('${p.codigo}', 'SIM')">
             <i class="fa-solid fa-xmark"></i> SIM
           </button>
         </div>
@@ -576,11 +667,13 @@ async function abrirTriagem(exameId) {
   perguntas.forEach(p => definirResposta(p.codigo, 'NAO', false));
 
   const obsElem = document.getElementById('txtObservacoesClinicas');
-  if (obsElem) obsElem.value = item.observacoesClinicas || '';
+  if (obsElem) {
+    obsElem.value = item.observacoesClinicas || '';
+    obsElem.disabled = isConcluidoOuAssinado;
+  }
 
-  // Se a API estiver online, registra a chamada do paciente e carrega triagem prévia se houver
+  // Se a API estiver online, carrega respostas prévias e laudo arquivado se houver
   if (UIState.online) {
-    ApiClient.chamarPaciente(item.id, UIState.usuarioLogado.id).catch(() => {});
     try {
       const triagemExistente = await ApiClient.obterTriagemPorExameId(item.id);
       if (triagemExistente && Array.isArray(triagemExistente.respostas) && triagemExistente.respostas.length > 0) {
@@ -590,6 +683,12 @@ async function abrirTriagem(exameId) {
         if (triagemExistente.observacoesClinicas && obsElem) {
           obsElem.value = triagemExistente.observacoesClinicas;
         }
+        if (triagemExistente.volumeContrasteMl) {
+          document.getElementById('calcDoseResultado').textContent = triagemExistente.volumeContrasteMl.toFixed(1);
+        }
+        if (triagemExistente.caminhoArquivoArmazenado) {
+          item.caminhoArquivoArmazenado = triagemExistente.caminhoArquivoArmazenado;
+        }
       }
     } catch {
       // Sem triagem prévia persistida, mantém respostas padrão
@@ -597,9 +696,94 @@ async function abrirTriagem(exameId) {
   }
 
   avaliarSemaforo();
+  configurarPainelAssinatura(item, isConcluidoOuAssinado);
 
   document.getElementById('navTriagem').removeAttribute('disabled');
   trocarView('view-triagem');
+}
+
+function configurarPainelAssinatura(item, isConcluidoOuAssinado) {
+  const painelPre = document.getElementById('painelPreAssinatura');
+  const painelPos = document.getElementById('painelPosAssinatura');
+  const badgeEstado = document.getElementById('badgeEstadoAssinatura');
+  const btnSalvar = document.getElementById('btnSalvarRascunho');
+  const btnLiberar = document.getElementById('btnLiberarExame');
+  const btnBloquear = document.getElementById('btnBloquearExame');
+
+  const operadorNome = UIState.usuarioLogado.nome || 'Operador Clínico';
+  const operadorPerfil = (UIState.usuarioLogado.perfilDescricao || UIState.usuarioLogado.perfil || 'BIOMÉDICO').toUpperCase();
+
+  if (isConcluidoOuAssinado) {
+    if (painelPre) painelPre.classList.add('hidden');
+    if (painelPos) painelPos.classList.remove('hidden');
+
+    const isLiberado = item.status === 'LIBERADO';
+    if (badgeEstado) {
+      badgeEstado.className = isLiberado ? 'badge-status status-liberado' : 'badge-status status-bloqueado';
+      badgeEstado.innerHTML = isLiberado 
+        ? '<i class="fa-solid fa-circle-check"></i> Assinatura Digital Válida (Liberado)'
+        : '<i class="fa-solid fa-ban"></i> Bloqueio Homologado (Não Permitido)';
+    }
+
+    const posTexto = document.getElementById('posAssinaturaTexto');
+    if (posTexto) {
+      posTexto.innerHTML = isLiberado
+        ? `Exame liberado para execução na sala <strong>${item.sala}</strong>. Assinado digitalmente pelo operador responsável.`
+        : `Exame com contraindicação radiológica absoluta homologada. Protocolo de segurança encerrado.`;
+    }
+
+    if (btnSalvar) btnSalvar.style.display = 'none';
+    if (btnLiberar) btnLiberar.style.display = 'none';
+    if (btnBloquear) btnBloquear.style.display = 'none';
+
+    // Botão de reabertura para Administrador
+    const btnResetAdmin = document.getElementById('btnResetarStatusExameDetalhe');
+    const isAdmin = operadorPerfil.includes('ADMIN') || UIState.usuarioLogado.perfil === 4;
+    if (btnResetAdmin) {
+      if (isAdmin) {
+        btnResetAdmin.classList.remove('hidden');
+        btnResetAdmin.onclick = async () => {
+          if (confirm(`Deseja retornar o Exame #${item.atendimento} para o status AGUARDANDO_TRIAGEM?`)) {
+            await ApiClient.resetStatusExameAdmin(item.id);
+            showToast(`Exame #${item.atendimento} resetado para Aguardando Triagem.`, 'success');
+            await carregarWorklist();
+            abrirTriagem(item.id);
+          }
+        };
+      } else {
+        btnResetAdmin.classList.add('hidden');
+      }
+    }
+
+    const btnVerDoc = document.getElementById('btnVerLaudoArquivado');
+    if (btnVerDoc) {
+      btnVerDoc.onclick = () => {
+        exibirModalArquivoSalvo(item.caminhoArquivoArmazenado || 'C:\\Users\\vinicius.tomazi\\Documents\\Triagem_Arquivada.pdf');
+      };
+    }
+  } else {
+    if (painelPre) painelPre.classList.remove('hidden');
+    if (painelPos) painelPos.classList.add('hidden');
+
+    if (badgeEstado) {
+      badgeEstado.className = 'badge-status status-aguardando';
+      badgeEstado.innerHTML = '<i class="fa-solid fa-pen-fancy"></i> Pré-Assinatura (Em Aberto)';
+    }
+
+    const elemNome = document.getElementById('assinaturaNomeOperador');
+    const elemPerfil = document.getElementById('assinaturaPerfilOperador');
+    const elemTime = document.getElementById('assinaturaTimestamp');
+    const elemDose = document.getElementById('assinaturaVolumeResumo');
+    const elemLote = document.getElementById('assinaturaLoteResumo');
+
+    if (elemNome) elemNome.textContent = operadorNome;
+    if (elemPerfil) elemPerfil.textContent = `${operadorPerfil} - Apto para abertura, laudo, dosagem e assinatura`;
+    if (elemTime) elemTime.textContent = new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'medium' });
+    if (elemDose) elemDose.textContent = `${document.getElementById('calcDoseResultado')?.textContent || '0.0'} mL`;
+    if (elemLote) elemLote.textContent = `Lote: ${document.getElementById('calcLoteInput')?.value || 'LOT-2026-X49B'}`;
+
+    if (btnSalvar) btnSalvar.style.display = 'inline-flex';
+  }
 }
 
 function definirResposta(codigo, valor, dispararAvaliacao = true) {
@@ -764,13 +948,20 @@ function initCalculadora() {
   document.getElementById('btnSalvarRascunho')?.addEventListener('click', async () => {
     try {
       const res = await persistirTriagem(false);
+      if (UIState.exameSelecionado.status === 'AGUARDANDO_TRIAGEM') {
+        UIState.exameSelecionado.status = 'EM_TRIAGEM';
+        const itemFila = UIState.exames.find(e => e.id === UIState.exameSelecionado.id);
+        if (itemFila) itemFila.status = 'EM_TRIAGEM';
+      }
       const caminho = res?.caminhoArquivoArmazenado;
       if (caminho) {
+        UIState.exameSelecionado.caminhoArquivoArmazenado = caminho;
         showToast('Ficha de triagem salva e arquivada em Documentos!', 'success');
         exibirModalArquivoSalvo(caminho);
       } else {
-        showToast('Ficha de triagem salva no sistema.', 'success');
+        showToast('Rascunho da triagem salvo com sucesso no sistema.', 'success');
       }
+      await carregarWorklist();
     } catch (err) {
       showToast(`Erro ao salvar: ${err.message}`, 'error');
     }
@@ -794,20 +985,35 @@ function initCalculadora() {
 
     const btn = document.getElementById('btnLiberarExame');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Assinando &amp; Liberando...';
 
     try {
+      // 1. Salva a triagem e solicita a liberação
       const res = await persistirTriagem(true);
+
+      // 2. Imediatamente atualiza o status local para LIBERADO
       UIState.exameSelecionado.status = 'LIBERADO';
+      const itemFila = UIState.exames.find(e => e.id === UIState.exameSelecionado.id);
+      if (itemFila) itemFila.status = 'LIBERADO';
+
       const caminho = res?.caminhoArquivoArmazenado;
       if (caminho) {
-        showToast(`Exame #${UIState.exameSelecionado.atendimento} liberado com sucesso!`, 'success');
-        exibirModalArquivoSalvo(caminho);
-      } else {
-        showToast(`Exame #${UIState.exameSelecionado.atendimento} liberado com sucesso!`, 'success');
+        UIState.exameSelecionado.caminhoArquivoArmazenado = caminho;
+        if (itemFila) itemFila.caminhoArquivoArmazenado = caminho;
       }
+
+      showToast(`Exame #${UIState.exameSelecionado.atendimento} assinado digitalmente e liberado!`, 'success');
+
+      // 3. Recarrega a Worklist do servidor
       await carregarWorklist();
+
+      // 4. Retorna para a fila de exames
       trocarView('view-worklist');
+
+      // 5. Se gerou documento, exibe comprovante
+      if (caminho) {
+        exibirModalArquivoSalvo(caminho);
+      }
     } catch (err) {
       showToast(`Erro ao liberar exame: ${err.message}`, 'error');
     } finally {
@@ -839,6 +1045,7 @@ async function persistirTriagem(liberar = false) {
     volumeContrasteMl: parseFloat(document.getElementById('calcDoseResultado').textContent) || null,
     loteContraste: document.getElementById('calcLoteInput')?.value.trim() || null,
     observacoesClinicas: obsElem?.value.trim() || null,
+    concluirELiberar: liberar,
     respostas: respostasDto
   };
 
@@ -1108,17 +1315,26 @@ function exibirModalArquivoSalvo(caminho) {
 }
 
 function recalcularDose() {
-  const peso = parseFloat(document.getElementById('calcPesoInput').value) || 0;
+  const peso = parseFloat(document.getElementById('calcPesoInput')?.value) || 0;
   const isTc = UIState.exameSelecionado?.modalidade === 'TC';
 
-  const proporcao = isTc ? 1.5 : 0.2;
+  const cfg = JSON.parse(localStorage.getItem('cfg_clinica') || '{}');
+  const proporcao = isTc ? (cfg.iodoProporcao || 1.5) : (cfg.gadoProporcao || 0.2);
+  const teto = isTc ? (cfg.iodoTeto || 150) : (cfg.gadoTeto || 25);
+
   let dose = Math.round(peso * proporcao * 10) / 10;
-  const teto = isTc ? 150 : 25;
   if (dose > teto) dose = teto;
 
-  document.getElementById('calcDoseResultado').textContent = dose > 0 ? dose.toFixed(1) : '0.0';
-  document.getElementById('calcDoseDetalhes').textContent = 
-    `Proporção clínica recomendada: ${proporcao} mL / kg (${isTc ? 'Contraste Iodado (Teto 150 mL)' : 'Gadolínio (Teto 25 mL)'}).`;
+  const resultadoElem = document.getElementById('calcDoseResultado');
+  const detalhesElem = document.getElementById('calcDoseDetalhes');
+  if (resultadoElem) resultadoElem.textContent = dose > 0 ? dose.toFixed(1) : '0.0';
+  if (detalhesElem) {
+    detalhesElem.textContent = 
+      `Proporção clínica recomendada: ${proporcao} mL / kg (${isTc ? `Contraste Iodado (Teto ${teto} mL)` : `Gadolínio (Teto ${teto} mL)`}).`;
+  }
+
+  const resumoDose = document.getElementById('assinaturaVolumeResumo');
+  if (resumoDose) resumoDose.textContent = `${dose > 0 ? dose.toFixed(1) : '0.0'} mL`;
 }
 
 /* ==============================================================================
@@ -1380,3 +1596,317 @@ function initAtalhosTeclado() {
     }
   });
 }
+
+/* ==============================================================================
+   12. PAINEL ADMINISTRATIVO E GESTÃO DO SISTEMA (PERFIL ADMIN)
+   ============================================================================== */
+function initAdminView() {
+  // Sincronizar exames para hoje
+  document.getElementById('btnAdminSincronizarHoje')?.addEventListener('click', async () => {
+    try {
+      const res = await ApiClient.sincronizarExamesHojeAdmin();
+      showToast(res.message || 'Exames sincronizados para a data de hoje!', 'success');
+      await carregarWorklist();
+      await carregarAdminView();
+    } catch (err) {
+      showToast(`Erro ao sincronizar: ${err.message}`, 'error');
+    }
+  });
+
+  // Exportar auditoria em CSV
+  document.getElementById('btnAdminExportarCsv')?.addEventListener('click', async () => {
+    try {
+      const logs = await ApiClient.obterAuditoria(200);
+      exportarCsvAuditoria(logs);
+      showToast('Relatório de auditoria exportado com sucesso!', 'success');
+    } catch (err) {
+      showToast(`Erro ao exportar auditoria: ${err.message}`, 'error');
+    }
+  });
+
+  // Modal Novo Operador
+  document.getElementById('btnAdminAbrirModalNovoUsuario')?.addEventListener('click', () => {
+    abrirModalNovoUsuario();
+  });
+
+  // Form de Parâmetros Clínicos
+  document.getElementById('formAdminParametrosClinicos')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const config = {
+      iodoProporcao: parseFloat(document.getElementById('cfgIodoProporcao').value) || 1.5,
+      iodoTeto: parseFloat(document.getElementById('cfgIodoTeto').value) || 150,
+      gadoProporcao: parseFloat(document.getElementById('cfgGadoProporcao').value) || 0.2,
+      gadoTeto: parseFloat(document.getElementById('cfgGadoTeto').value) || 25,
+      creatininaAlerta: parseFloat(document.getElementById('cfgCreatininaAlerta').value) || 1.5,
+      jejumHoras: parseInt(document.getElementById('cfgJejumHoras').value) || 4
+    };
+    localStorage.setItem('cfg_clinica', JSON.stringify(config));
+    recalcularDose();
+    showToast('Parâmetros clínicos e tetos institucionais salvos com sucesso!', 'success');
+  });
+
+  carregarParametrosClinicosForm();
+}
+
+async function carregarAdminView() {
+  try {
+    const usuarios = await ApiClient.listarUsuariosAdmin();
+    renderizarAdminUsuarios(usuarios);
+    const countElem = document.getElementById('adminStatOperadores');
+    if (countElem && Array.isArray(usuarios)) countElem.textContent = usuarios.length;
+  } catch (err) {
+    console.warn('Erro ao listar usuários admin:', err);
+  }
+
+  try {
+    const statusBancos = await ApiClient.obterStatusBancos();
+    const stat1 = document.getElementById('adminStatBanco1');
+    const stat2 = document.getElementById('adminStatBanco2');
+    if (stat1) stat1.textContent = statusBancos.banco1_aplicacao?.statusConexao === 'CONECTADO' ? 'Online' : 'Conectado';
+    if (stat2) stat2.textContent = `${statusBancos.banco2_worklist_lab?.pedidosAgendados || 0} exames`;
+  } catch {}
+
+  const countExames = document.getElementById('adminStatExamesTotal');
+  if (countExames) countExames.textContent = UIState.exames.length;
+  renderizarAdminExames();
+}
+
+function renderizarAdminUsuarios(usuarios) {
+  const tbody = document.getElementById('adminUsuariosTableBody');
+  if (!tbody || !Array.isArray(usuarios)) return;
+
+  tbody.innerHTML = usuarios.map(u => {
+    const isAtivo = u.statusUsuario;
+    const statusBadge = isAtivo
+      ? '<span class="badge-status status-liberado"><i class="fa-solid fa-circle-check"></i> Ativo</span>'
+      : '<span class="badge-status status-bloqueado"><i class="fa-solid fa-circle-xmark"></i> Inativo</span>';
+
+    const perfilBadgeClass = u.perfil === 'ADMIN' ? 'badge-tc' : 'badge-rm';
+
+    return `
+      <tr>
+        <td><strong>${u.nome}</strong></td>
+        <td><span style="font-family: var(--font-mono); color: var(--cyan-400);">${u.login}</span></td>
+        <td><span class="badge-modalidade ${perfilBadgeClass}">${u.perfil}</span></td>
+        <td>${statusBadge}</td>
+        <td><span style="font-size: 0.85rem; color: var(--text-muted);">${new Date(u.criadoEm).toLocaleDateString()}</span></td>
+        <td style="text-align: right;">
+          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; margin-right: 6px;" onclick="adminToggleStatusUsuario(${u.id})">
+            <i class="fa-solid ${isAtivo ? 'fa-user-slash' : 'fa-user-check'}"></i> ${isAtivo ? 'Inativar' : 'Ativar'}
+          </button>
+          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px;" onclick="adminResetSenhaUsuario(${u.id})">
+            <i class="fa-solid fa-key"></i> Reset Senha
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderizarAdminExames() {
+  const tbody = document.getElementById('adminExamesTableBody');
+  if (!tbody) return;
+
+  tbody.innerHTML = UIState.exames.map(item => {
+    const isLiberado = item.status === 'LIBERADO';
+    const isBloqueado = item.status === 'BLOQUEADO_SEGURANCA';
+
+    const statusBadge = isLiberado
+      ? '<span class="badge-status status-liberado"><i class="fa-solid fa-check-circle"></i> Liberado</span>'
+      : (isBloqueado
+        ? '<span class="badge-status status-bloqueado"><i class="fa-solid fa-ban"></i> Bloqueado</span>'
+        : '<span class="badge-status status-aguardando"><i class="fa-solid fa-clock"></i> Aguardando</span>');
+
+    return `
+      <tr>
+        <td><span style="font-family: var(--font-mono); font-weight: 700;">#${item.atendimento}</span></td>
+        <td><strong>${item.pacienteNome}</strong></td>
+        <td><span class="badge-modalidade ${item.modalidade === 'TC' ? 'badge-tc' : 'badge-rm'}">${item.modalidade}</span></td>
+        <td><span style="font-size: 0.85rem;">${item.procedimento}</span></td>
+        <td><span style="font-family: var(--font-mono); font-weight: 700; color: var(--cyan-400);">${item.sala}</span></td>
+        <td>${statusBadge}</td>
+        <td style="text-align: right;">
+          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; margin-right: 6px;" onclick="adminAlterarSala(${item.id}, '${item.sala}')">
+            <i class="fa-solid fa-door-open"></i> Trocar Sala
+          </button>
+          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; border-color: rgba(239, 68, 68, 0.3); color: #f87171;" onclick="adminResetStatusExame(${item.id})">
+            <i class="fa-solid fa-rotate-left"></i> Resetar p/ Aguardando
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function adminToggleStatusUsuario(id) {
+  try {
+    const res = await ApiClient.toggleStatusUsuarioAdmin(id);
+    showToast(res.message || 'Status do operador atualizado!', 'success');
+    await carregarAdminView();
+  } catch (err) {
+    showToast(`Erro ao alterar status: ${err.message}`, 'error');
+  }
+}
+
+async function adminResetSenhaUsuario(id) {
+  if (!confirm('Deseja redefinir a senha deste operador para a senha inicial padrão "123456"?')) return;
+  try {
+    const res = await ApiClient.resetSenhaUsuarioAdmin(id);
+    showToast(res.message || 'Senha resetada para 123456 com sucesso!', 'success');
+  } catch (err) {
+    showToast(`Erro ao resetar senha: ${err.message}`, 'error');
+  }
+}
+
+async function adminResetStatusExame(id) {
+  if (!confirm('Deseja retornar este exame para AGUARDANDO_TRIAGEM para novo teste?')) return;
+  try {
+    const res = await ApiClient.resetStatusExameAdmin(id);
+    showToast(res.message || 'Exame retornado para Aguardando Triagem!', 'success');
+    await carregarWorklist();
+    await carregarAdminView();
+  } catch (err) {
+    showToast(`Erro ao resetar status do exame: ${err.message}`, 'error');
+  }
+}
+
+async function adminAlterarSala(id, salaAtual) {
+  const novaSala = prompt(`Informe a nova sala para este exame (Sala atual: ${salaAtual}):`, salaAtual);
+  if (!novaSala || novaSala.trim() === salaAtual) return;
+
+  try {
+    const res = await ApiClient.alterarSalaExameAdmin(id, novaSala.trim());
+    showToast(res.message || 'Sala alterada com sucesso!', 'success');
+    await carregarWorklist();
+    await carregarAdminView();
+  } catch (err) {
+    showToast(`Erro ao alterar sala: ${err.message}`, 'error');
+  }
+}
+
+function abrirModalNovoUsuario() {
+  document.getElementById('modalNovoUsuarioAdmin')?.remove();
+
+  const container = document.createElement('div');
+  container.id = 'modalNovoUsuarioAdmin';
+  container.style.position = 'fixed';
+  container.style.inset = '0';
+  container.style.background = 'rgba(15, 23, 42, 0.8)';
+  container.style.backdropFilter = 'blur(6px)';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  container.style.justifyContent = 'center';
+  container.style.zIndex = '9999';
+
+  container.innerHTML = `
+    <div style="background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 12px; max-width: 520px; width: 90%; padding: 26px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); color: #f8fafc;">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+        <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+          <i class="fa-solid fa-user-plus"></i>
+        </div>
+        <div>
+          <h3 style="font-family: var(--font-title); font-size: 1.2rem; font-weight: 700; color: #fff;">Cadastrar Novo Operador</h3>
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">Crie acesso para Biomédico, Técnico de RM ou Estagiário de Biomedicina.</p>
+        </div>
+      </div>
+
+      <form id="formNovoOperadorAdmin">
+        <div class="form-field" style="margin-bottom: 14px;">
+          <label class="form-label" for="novoOpNome">Nome Completo do Operador</label>
+          <input type="text" id="novoOpNome" class="form-input" placeholder="Ex: Lucas Gabriel Rocha" required>
+        </div>
+
+        <div class="form-field" style="margin-bottom: 14px;">
+          <label class="form-label" for="novoOpLogin">Login de Acesso</label>
+          <input type="text" id="novoOpLogin" class="form-input" placeholder="Ex: lucas.rocha" required>
+        </div>
+
+        <div class="form-field" style="margin-bottom: 14px;">
+          <label class="form-label" for="novoOpSenha">Senha Inicial</label>
+          <input type="password" id="novoOpSenha" class="form-input" value="123456" required>
+        </div>
+
+        <div class="form-field" style="margin-bottom: 22px;">
+          <label class="form-label" for="novoOpPerfil">Perfil de Acesso</label>
+          <select id="novoOpPerfil" class="form-input" style="cursor: pointer;">
+            <option value="1">Estagiário de Biomedicina (ESTAGIARIO)</option>
+            <option value="2">Técnico em Radiologia (TECNICO)</option>
+            <option value="3">Biomédico Especialista (BIOMEDICO)</option>
+            <option value="4">Administrador do Sistema (ADMIN)</option>
+          </select>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalNovoUsuarioAdmin').remove()">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn--primary" id="btnSalvarNovoOp">
+            <i class="fa-solid fa-check"></i> Cadastrar Operador
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(container);
+
+  document.getElementById('formNovoOperadorAdmin').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btnSalvar = document.getElementById('btnSalvarNovoOp');
+    btnSalvar.disabled = true;
+    btnSalvar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Cadastrando...';
+
+    const payload = {
+      nome: document.getElementById('novoOpNome').value.trim(),
+      login: document.getElementById('novoOpLogin').value.trim(),
+      senha: document.getElementById('novoOpSenha').value || '123456',
+      perfil: parseInt(document.getElementById('novoOpPerfil').value) || 1
+    };
+
+    try {
+      await ApiClient.criarUsuarioAdmin(payload);
+      showToast(`Operador "${payload.nome}" cadastrado com sucesso!`, 'success');
+      container.remove();
+      await carregarAdminView();
+    } catch (err) {
+      showToast(`Erro ao criar operador: ${err.message}`, 'error');
+      btnSalvar.disabled = false;
+      btnSalvar.innerHTML = '<i class="fa-solid fa-check"></i> Cadastrar Operador';
+    }
+  });
+}
+
+function carregarParametrosClinicosForm() {
+  const cfg = JSON.parse(localStorage.getItem('cfg_clinica') || '{}');
+  if (cfg.iodoProporcao) document.getElementById('cfgIodoProporcao').value = cfg.iodoProporcao;
+  if (cfg.iodoTeto) document.getElementById('cfgIodoTeto').value = cfg.iodoTeto;
+  if (cfg.gadoProporcao) document.getElementById('cfgGadoProporcao').value = cfg.gadoProporcao;
+  if (cfg.gadoTeto) document.getElementById('cfgGadoTeto').value = cfg.gadoTeto;
+  if (cfg.creatininaAlerta) document.getElementById('cfgCreatininaAlerta').value = cfg.creatininaAlerta;
+  if (cfg.jejumHoras) document.getElementById('cfgJejumHoras').value = cfg.jejumHoras;
+}
+
+function exportarCsvAuditoria(logs) {
+  if (!Array.isArray(logs) || logs.length === 0) {
+    showToast('Nenhum registro de auditoria disponível para exportação.', 'info');
+    return;
+  }
+  const cabecalho = ['ID', 'Data_Hora', 'Usuario', 'Tipo_Evento', 'Detalhes', 'IP_Origem'];
+  const linhas = logs.map(l => [
+    l.id,
+    `"${new Date(l.criadoEm).toLocaleString()}"`,
+    `"${(l.usuarioNome || l.usuarioId || '').toString().replace(/"/g, '""')}"`,
+    `"${(l.tipoEvento || '').toString().replace(/"/g, '""')}"`,
+    `"${(l.detalhes || '').toString().replace(/"/g, '""')}"`,
+    `"${l.ipOrigem || '127.0.0.1'}"`
+  ]);
+  const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [cabecalho.join(';'), ...linhas.map(e => e.join(';'))].join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `Auditoria_TriagemImagem_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+

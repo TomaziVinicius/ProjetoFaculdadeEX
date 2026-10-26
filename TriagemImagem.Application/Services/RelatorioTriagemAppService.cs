@@ -91,13 +91,13 @@ public class RelatorioTriagemAppService : IRelatorioTriagemAppService
         sb.AppendLine("  <div class=\"page-container\">");
         sb.AppendLine("    <div class=\"header\">");
         sb.AppendLine("      <div>");
-        sb.AppendLine("        <div class=\"header-logo-text\">Instituto Maringá de Imagem</div>");
-        sb.AppendLine("        <div style=\"font-size: 12px; color: #475569;\">Instituto Carlos Américo de Imagem - Diagnóstico Médico</div>");
+        sb.AppendLine("        <div class=\"header-logo-text\">Centro de Diagnóstico por Imagem - UNICIVE</div>");
+        sb.AppendLine("        <div style=\"font-size: 12px; color: #475569;\">Projeto Acadêmico Faculdade UNICIVE - Serviço de TC &amp; RM</div>");
         sb.AppendLine("      </div>");
         sb.AppendLine("      <div class=\"header-contact\">");
-        sb.AppendLine("        <div>Telefone: (44) 3033-5500</div>");
-        sb.AppendLine("        <div>www.institutoimagem.com.br</div>");
-        sb.AppendLine("        <div>Maringá - Paraná</div>");
+        sb.AppendLine("        <div>Sistema de Triagem Clínica</div>");
+        sb.AppendLine("        <div>Ambiente Acadêmico de Demonstração</div>");
+        sb.AppendLine("        <div>Checklist de Segurança Radiológica</div>");
         sb.AppendLine("      </div>");
         sb.AppendLine("    </div>");
 

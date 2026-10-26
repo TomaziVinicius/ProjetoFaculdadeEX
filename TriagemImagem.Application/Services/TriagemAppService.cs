@@ -84,10 +84,14 @@ public class TriagemAppService : ITriagemAppService
             formulario.Respostas.Add(item);
         }
 
-        // 6. Atualização do status do Exame conforme Semáforo Clínico
+        // 6. Atualização do status do Exame conforme Semáforo Clínico e intenção de liberação
         if (avaliacao.BloqueiaExame)
         {
             exame.Status = StatusExame.BLOQUEADO_SEGURANCA;
+        }
+        else if (request.ConcluirELiberar == false)
+        {
+            exame.Status = StatusExame.EM_TRIAGEM;
         }
         else
         {

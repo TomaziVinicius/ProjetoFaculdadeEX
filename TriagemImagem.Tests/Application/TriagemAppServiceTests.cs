@@ -18,6 +18,8 @@ public class TriagemAppServiceTests
         public Task<Exame?> ObterPorIdAsync(int id) => Task.FromResult(ExameArmazenado);
         public Task<IEnumerable<Exame>> ListarDoDiaAsync(DateTime data, ModalidadeExame? modalidade, StatusExame? status) =>
             Task.FromResult<IEnumerable<Exame>>(ExameArmazenado != null ? new[] { ExameArmazenado } : Array.Empty<Exame>());
+        public Task<IEnumerable<Exame>> ListarTodosAsync(ModalidadeExame? modalidade, StatusExame? status) =>
+            Task.FromResult<IEnumerable<Exame>>(ExameArmazenado != null ? new[] { ExameArmazenado } : Array.Empty<Exame>());
         public Task<IEnumerable<Exame>> BuscarAsync(string? termoBusca, DateTime? data) =>
             Task.FromResult<IEnumerable<Exame>>(ExameArmazenado != null ? new[] { ExameArmazenado } : Array.Empty<Exame>());
         public Task AdicionarAsync(Exame exame) { ExameArmazenado = exame; return Task.CompletedTask; }
@@ -60,6 +62,7 @@ public class TriagemAppServiceTests
         public Task<Usuario?> ObterPorIdAsync(int id) => Task.FromResult<Usuario?>(new Usuario { Id = id, Nome = "Operador Teste" });
         public Task<Usuario?> ObterPorLoginAsync(string login) => Task.FromResult<Usuario?>(null);
         public Task<IEnumerable<Usuario>> ListarAtivosAsync() => Task.FromResult(Enumerable.Empty<Usuario>());
+        public Task<IEnumerable<Usuario>> ListarTodosAsync() => Task.FromResult(Enumerable.Empty<Usuario>());
         public Task AdicionarAsync(Usuario usuario) => Task.CompletedTask;
         public Task AtualizarAsync(Usuario usuario) => Task.CompletedTask;
         public Task<int> SalvarAlteracoesAsync() => Task.FromResult(1);

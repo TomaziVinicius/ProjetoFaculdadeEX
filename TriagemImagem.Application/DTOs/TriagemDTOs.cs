@@ -19,6 +19,7 @@ public class SalvarTriagemRequestDto
     public decimal? VolumeContrasteMl { get; set; }
     public string? LoteContraste { get; set; }
     public string? ObservacoesClinicas { get; set; }
+    public bool? ConcluirELiberar { get; set; }
     public List<ItemRespostaDto> Respostas { get; set; } = new();
 }
 

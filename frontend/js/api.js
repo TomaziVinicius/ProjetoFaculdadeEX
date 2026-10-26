@@ -125,5 +125,49 @@ const ApiClient = {
   // 12. Consulta de Agendamentos diretamente no Banco de Dados 2 (Laboratório / HIS-RIS)
   async obterWorklistLaboratorio() {
     return await this.request('/worklist/laboratorio', { method: 'GET' });
+  },
+
+  // 13. Módulos Administrativos e Gestão de Operadores
+  async listarUsuariosAdmin() {
+    return await this.request('/admin/usuarios', { method: 'GET' });
+  },
+
+  async criarUsuarioAdmin(dados) {
+    return await this.request('/admin/usuarios', {
+      method: 'POST',
+      body: JSON.stringify(dados)
+    });
+  },
+
+  async toggleStatusUsuarioAdmin(usuarioId) {
+    return await this.request(`/admin/usuarios/${usuarioId}/toggle-status`, {
+      method: 'PUT'
+    });
+  },
+
+  async resetSenhaUsuarioAdmin(usuarioId) {
+    return await this.request(`/admin/usuarios/${usuarioId}/reset-senha`, {
+      method: 'PUT'
+    });
+  },
+
+  async resetStatusExameAdmin(exameId) {
+    return await this.request(`/admin/exames/${exameId}/reset-status`, {
+      method: 'POST'
+    });
+  },
+
+  async alterarSalaExameAdmin(exameId, novaSala) {
+    return await this.request(`/admin/exames/${exameId}/alterar-sala`, {
+      method: 'POST',
+      body: JSON.stringify({ novaSala })
+    });
+  },
+
+  async sincronizarExamesHojeAdmin() {
+    return await this.request('/admin/exames/sincronizar-hoje', {
+      method: 'POST'
+    });
   }
 };
+

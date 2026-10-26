@@ -35,6 +35,14 @@ public class UsuarioRepository : IUsuarioRepository
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<Usuario>> ListarTodosAsync()
+    {
+        return await _context.Usuarios
+            .AsNoTracking()
+            .OrderBy(u => u.Id)
+            .ToListAsync();
+    }
+
     public async Task AdicionarAsync(Usuario usuario)
     {
         await _context.Usuarios.AddAsync(usuario);

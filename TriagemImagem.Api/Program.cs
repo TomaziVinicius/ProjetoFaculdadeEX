@@ -116,15 +116,37 @@ using (var scope = app.Services.CreateScope())
 // 6. Middleware Global para Tratamento de Erros e Regras Clínicas (DomainException)
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// 7. Pipeline HTTP
+// 7. Pipeline HTTP e Documentação OpenAPI (Swagger)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
 app.UseCors("Frontend");
+
+// 8. Servir a Aplicação Web Frontend diretamente na porta 5000 (http://localhost:5000)
+var pastaFrontend = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "frontend"));
+if (!Directory.Exists(pastaFrontend))
+{
+    pastaFrontend = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "frontend"));
+}
+
+if (Directory.Exists(pastaFrontend))
+{
+    var fileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(pastaFrontend);
+    app.UseDefaultFiles(new DefaultFilesOptions
+    {
+        FileProvider = fileProvider,
+        RequestPath = ""
+    });
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = fileProvider,
+        RequestPath = ""
+    });
+}
+
 app.UseAuthorization();
 app.MapControllers();
 

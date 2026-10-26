@@ -97,7 +97,8 @@ INSERT INTO usuarios (id, nome, login, senha_usuario, perfil, status_usuario, cr
 VALUES 
 (1, 'Administrador do Sistema', 'admin', '$2a$11$e8pA8l4r0yA9j1g6r4m5t6u7v8w9x0y1z2a3b4c5d6e7f8g9h0i1j', 'ADMIN', TRUE, NOW()),
 (2, 'Lucas Silva (Biomédico)', 'lucas.biomed', '$2a$11$e8pA8l4r0yA9j1g6r4m5t6u7v8w9x0y1z2a3b4c5d6e7f8g9h0i1j', 'BIOMEDICO', TRUE, NOW()),
-(3, 'Mariana Santos (Técnica)', 'mariana.tec', '$2a$11$e8pA8l4r0yA9j1g6r4m5t6u7v8w9x0y1z2a3b4c5d6e7f8g9h0i1j', 'TECNICO', TRUE, NOW())
+(3, 'Mariana Santos (Técnica)', 'mariana.tec', '$2a$11$e8pA8l4r0yA9j1g6r4m5t6u7v8w9x0y1z2a3b4c5d6e7f8g9h0i1j', 'TECNICO', TRUE, NOW()),
+(4, 'Gabriel Souza (Estagiário)', 'gabriel.estagio', '$2a$11$e8pA8l4r0yA9j1g6r4m5t6u7v8w9x0y1z2a3b4c5d6e7f8g9h0i1j', 'ESTAGIARIO', TRUE, NOW())
 ON DUPLICATE KEY UPDATE id=id;
 
 INSERT INTO pacientes (id, documento_cpf, nome_completo, data_nascimento, sexo, peso_kg, altura_cm)

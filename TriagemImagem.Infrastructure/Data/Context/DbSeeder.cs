@@ -7,8 +7,24 @@ public static class DbSeeder
 {
     public static void Seed(AppDbContext context)
     {
-        // Se já possui usuários cadastrados, não reinicializa
-        if (context.Usuarios.Any()) return;
+        // Se já possui usuários cadastrados, garante que o estagiário também exista e encerra
+        if (context.Usuarios.Any())
+        {
+            if (!context.Usuarios.Any(u => u.Login.ToLower() == "gabriel.estagio"))
+            {
+                context.Usuarios.Add(new Usuario
+                {
+                    Nome = "Gabriel Souza (Estagiário)",
+                    Login = "gabriel.estagio",
+                    SenhaUsuario = "123456",
+                    Perfil = PerfilUsuario.ESTAGIARIO,
+                    StatusUsuario = true,
+                    CriadoEm = DateTime.UtcNow
+                });
+                context.SaveChanges();
+            }
+            return;
+        }
 
         // 1. Usuários Operacionais e Administrador
         var admin = new Usuario
@@ -41,7 +57,17 @@ public static class DbSeeder
             CriadoEm = DateTime.UtcNow
         };
 
-        context.Usuarios.AddRange(admin, biomedico, tecnico);
+        var estagiario = new Usuario
+        {
+            Nome = "Gabriel Souza (Estagiário)",
+            Login = "gabriel.estagio",
+            SenhaUsuario = "123456",
+            Perfil = PerfilUsuario.ESTAGIARIO,
+            StatusUsuario = true,
+            CriadoEm = DateTime.UtcNow
+        };
+
+        context.Usuarios.AddRange(admin, biomedico, tecnico, estagiario);
         context.SaveChanges();
 
         // 2. Pacientes

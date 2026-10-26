@@ -34,3 +34,8 @@ Thumbs.db
 desktop.ini
 
 .fake
+
+## Arquivos Pessoais / Manuais Locais (Não enviar para o Git)
+GUIA_TESTES_E_SWAGGER.md
+*PESSOAL*.md
+*pessoal*.md

@@ -68,7 +68,7 @@ public class RelatorioTriagemAppServiceTests
 
         var conteudo = await File.ReadAllTextAsync(caminhoArquivo);
         Assert.Contains(tituloEsperado, conteudo);
-        Assert.Contains("Instituto Maringá de Imagem", conteudo);
+        Assert.Contains("Centro de Diagnóstico por Imagem - UNICIVE", conteudo);
         Assert.Contains("Paciente Teste Relatório", conteudo);
         Assert.Contains("VERDE - LIBERADO PARA EXAME", conteudo);
         Assert.Contains("Biomédico Responsável", conteudo);
