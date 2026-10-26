@@ -2223,10 +2223,73 @@ function renderizarDicionarioProtocolos(protocoloId) {
 }
 
 /**
- * Validador Estrito de Conformidade e Unicidade de Códigos TUSS e RIS
- * Regra: Obrigatório, formato válido (mín. 4 caracteres) e NÃO REPETIDO no catálogo global
+ * Busca um procedimento cadastrado pelo código TUSS/TISS/RIS em todos os protocolos do catálogo
  */
-function validarCodigoTussERis(codigoTuss, codigoOriginal = null) {
+function buscarProcedimentoPorCodigoTuss(codigoTuss) {
+  if (!codigoTuss || !codigoTuss.trim()) return null;
+  const codLimpo = codigoTuss.trim().toUpperCase();
+
+  for (const protoKey of Object.keys(CATALOGO_PROCEDIMENTOS_FORMULARIO)) {
+    const procs = CATALOGO_PROCEDIMENTOS_FORMULARIO[protoKey] || [];
+    const info = PROTOCOLOS_CATALOGO_INFO[protoKey] || {
+      id: protoKey,
+      nome: protoKey,
+      modalidade: protoKey.startsWith('TC') ? 'TC' : 'RM'
+    };
+    for (const proc of procs) {
+      if (proc.codigoTuss && proc.codigoTuss.trim().toUpperCase() === codLimpo) {
+        return {
+          protocoloId: protoKey,
+          protocoloInfo: info,
+          procedimento: proc
+        };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Retorna lista plana de todos os procedimentos TUSS/RIS cadastrados no catálogo
+ */
+function obterListaTodosProcedimentosTuss() {
+  const lista = [];
+  const jaVistos = new Set();
+
+  for (const protoKey of Object.keys(CATALOGO_PROCEDIMENTOS_FORMULARIO)) {
+    const procs = CATALOGO_PROCEDIMENTOS_FORMULARIO[protoKey] || [];
+    const info = PROTOCOLOS_CATALOGO_INFO[protoKey] || {
+      id: protoKey,
+      nome: protoKey,
+      modalidade: protoKey.startsWith('TC') ? 'TC' : 'RM'
+    };
+    for (const proc of procs) {
+      if (proc.codigoTuss) {
+        const cod = proc.codigoTuss.trim().toUpperCase();
+        const chaveUnica = `${cod}_${protoKey}`;
+        if (!jaVistos.has(chaveUnica)) {
+          jaVistos.add(chaveUnica);
+          lista.push({
+            codigoTuss: cod,
+            nome: proc.nome,
+            regiao: proc.regiao,
+            protocoloId: protoKey,
+            protocoloNome: info.nome,
+            modalidade: info.modalidade
+          });
+        }
+      }
+    }
+  }
+  return lista;
+}
+
+/**
+ * Validador de Conformidade de Códigos TUSS e RIS
+ * Regra: Obrigatório, formato válido (mín. 3 caracteres).
+ * Sem bloqueio de duplicidade: permite que múltiplos exames/agendamentos e laudos utilizem o mesmo código TUSS.
+ */
+function validarCodigoTussERis(codigoTuss) {
   if (!codigoTuss || !codigoTuss.trim()) {
     return { 
       valido: false, 
@@ -2236,33 +2299,138 @@ function validarCodigoTussERis(codigoTuss, codigoOriginal = null) {
 
   const codLimpo = codigoTuss.trim().toUpperCase();
 
-  if (codLimpo.length < 4) {
+  if (codLimpo.length < 3) {
     return { 
       valido: false, 
-      mensagem: 'O Código TUSS / RIS deve possuir no mínimo 4 caracteres (Ex: 41101014 ou RMCRAN).' 
+      mensagem: 'O Código TUSS / RIS deve possuir no mínimo 3 caracteres (Ex: 41101014 ou RMCRAN).' 
     };
   }
 
-  // Validação de unicidade no catálogo global de procedimentos
-  for (const protoKey of Object.keys(CATALOGO_PROCEDIMENTOS_FORMULARIO)) {
-    const procs = CATALOGO_PROCEDIMENTOS_FORMULARIO[protoKey] || [];
-    for (const proc of procs) {
-      if (proc.codigoTuss && proc.codigoTuss.trim().toUpperCase() === codLimpo) {
-        if (codigoOriginal && codigoOriginal.trim().toUpperCase() === codLimpo) {
-          continue; // Mesma entidade em edição
-        }
-        const nomeProto = PROTOCOLOS_CATALOGO_INFO[protoKey]?.nome || protoKey;
-        return {
-          valido: false,
-          mensagem: `Código TUSS/RIS "${codLimpo}" já cadastrado no exame "${proc.nome}" (Protocolo: ${nomeProto}). Códigos duplicados não são permitidos.`,
-          duplicadoEm: protoKey,
-          procExistente: proc
-        };
+  const encontrado = buscarProcedimentoPorCodigoTuss(codLimpo);
+
+  return { 
+    valido: true, 
+    codigoFormatado: codLimpo,
+    encontrado: !!encontrado,
+    dados: encontrado
+  };
+}
+
+/**
+ * Reage dinamicamente em tempo real ao código TUSS digitado ou selecionado nos modais.
+ * Se o código existir no catálogo: preenche e bloqueia os campos para manter a fidelidade do formulário.
+ * Se for inédito/avulso: desbloqueia para permitir customização manual.
+ */
+function adminReagirAoCodigoTuss(codigo, prefixo) {
+  const codLimpo = (codigo || '').trim().toUpperCase();
+  const match = buscarProcedimentoPorCodigoTuss(codLimpo);
+
+  const campoModalidade = document.getElementById(`${prefixo}Modalidade`);
+  const campoTipoFormulario = document.getElementById(`${prefixo}TipoFormulario`);
+  const campoProcedimento = document.getElementById(`${prefixo}Procedimento`);
+  const campoSegmento = document.getElementById(`${prefixo}Segmento`);
+  const campoSala = document.getElementById(`${prefixo}Sala`);
+  const feedback = document.getElementById(`${prefixo}TussFeedback`);
+  const selRapido = document.getElementById(`${prefixo}SelectTussRapido`);
+
+  if (selRapido && selRapido.value !== codLimpo && match) {
+    selRapido.value = codLimpo;
+  }
+
+  if (match) {
+    const protoId = match.protocoloId;
+    const protoInfo = match.protocoloInfo || PROTOCOLOS_CATALOGO_INFO[protoId];
+    const proc = match.procedimento;
+
+    // Atualiza modalidade e bloqueia edição
+    if (campoModalidade) {
+      campoModalidade.value = protoInfo.modalidade;
+      campoModalidade.disabled = true;
+    }
+
+    // Atualiza opções do formulário se necessário e seleciona
+    if (campoTipoFormulario) {
+      if (prefixo === 'novoExame' && typeof adminAtualizarFormulariosModalNovo === 'function') {
+        adminAtualizarFormulariosModalNovo(protoInfo.modalidade);
+      }
+      campoTipoFormulario.value = protoId;
+      campoTipoFormulario.disabled = true;
+    }
+
+    // Preenche procedimento e bloqueia
+    if (campoProcedimento) {
+      campoProcedimento.value = proc.nome;
+      campoProcedimento.readOnly = true;
+      campoProcedimento.style.background = 'rgba(15, 23, 42, 0.65)';
+      campoProcedimento.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+    }
+
+    // Preenche região anatômica e bloqueia
+    if (campoSegmento) {
+      campoSegmento.value = proc.regiao || '';
+      campoSegmento.readOnly = true;
+      campoSegmento.style.background = 'rgba(15, 23, 42, 0.65)';
+      campoSegmento.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+    }
+
+    // Ajusta sala se incompatível
+    if (campoSala) {
+      if (protoInfo.modalidade === 'TC' && campoSala.value.startsWith('RM')) {
+        campoSala.value = 'TC-01';
+      } else if (protoInfo.modalidade === 'RM' && campoSala.value.startsWith('TC')) {
+        campoSala.value = 'RM-01';
+      }
+    }
+
+    // Banner de feedback em tempo real
+    if (feedback) {
+      feedback.innerHTML = `
+        <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <i class="fa-solid fa-lock" style="color: var(--emerald-400); font-size: 1.15rem;"></i>
+            <div>
+              <div style="font-weight: 600; color: #fff; font-size: 0.88rem;">
+                ${proc.nome}
+              </div>
+              <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
+                Formulário Vinculado: <strong style="color: var(--cyan-400);">${protoInfo.nome}</strong> (${protoInfo.modalidade}) | Região: <strong style="color: #fff;">${proc.regiao || 'Padrão'}</strong>
+              </div>
+            </div>
+          </div>
+          <span style="font-size: 0.72rem; padding: 4px 9px; border-radius: 6px; background: rgba(16, 185, 129, 0.25); color: #34d399; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+            <i class="fa-solid fa-check"></i> Form Vinculado
+          </span>
+        </div>
+      `;
+    }
+  } else {
+    // Código TUSS não encontrado no catálogo: libera para edição manual
+    if (campoModalidade) campoModalidade.disabled = false;
+    if (campoTipoFormulario) campoTipoFormulario.disabled = false;
+    if (campoProcedimento) {
+      campoProcedimento.readOnly = false;
+      campoProcedimento.style.background = '';
+      campoProcedimento.style.borderColor = '';
+    }
+    if (campoSegmento) {
+      campoSegmento.readOnly = false;
+      campoSegmento.style.background = '';
+      campoSegmento.style.borderColor = '';
+    }
+
+    if (feedback) {
+      if (codLimpo.length >= 3) {
+        feedback.innerHTML = `
+          <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 0.8rem; color: var(--cyan-300);">
+            <i class="fa-solid fa-pen-to-square"></i>
+            <span>Código TUSS inédito ou avulso: Defina a modalidade, formulário e descrição do exame manualmente.</span>
+          </div>
+        `;
+      } else {
+        feedback.innerHTML = '';
       }
     }
   }
-
-  return { valido: true, codigoFormatado: codLimpo };
 }
 
 function adminAbrirVincularProcedimento() {
@@ -2594,8 +2762,11 @@ function adminAbrirModalEditarExame(exameId) {
   container.style.justifyContent = 'center';
   container.style.zIndex = '9999';
 
+  const listaProcs = obterListaTodosProcedimentosTuss();
+  const codigoInicial = item.codigoProcedimento || '';
+
   container.innerHTML = `
-    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 680px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
+    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 720px; width: 95%; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
       <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">
@@ -2603,13 +2774,20 @@ function adminAbrirModalEditarExame(exameId) {
           </div>
           <div>
             <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">Editar Dados do Exame #${item.atendimento}</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Atualize dados cadastrais, clínicos ou formulário de triagem associado.</p>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Atualize dados cadastrais, clínicos ou altere o procedimento TUSS associado.</p>
           </div>
         </div>
         <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalEditarExameAdmin').remove()" style="padding: 6px 10px;">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
+
+      <!-- Datalist com todos os procedimentos TUSS/RIS do catálogo -->
+      <datalist id="listaProcedimentosTussDatalistEdit">
+        ${listaProcs.map(p => `
+          <option value="${p.codigoTuss}">${p.codigoTuss} - ${p.nome} (${p.protocoloNome})</option>
+        `).join('')}
+      </datalist>
 
       <form id="formEditarExameModal" style="padding: 22px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
@@ -2629,15 +2807,68 @@ function adminAbrirModalEditarExame(exameId) {
             <input type="number" step="0.1" id="editExamePeso" class="form-input" value="${item.pesoKg || 70}" required>
           </div>
           <div class="form-field">
-            <label class="form-label" for="editExameModalidade">Modalidade:</label>
+            <label class="form-label" for="editExameSala">Sala Operacional:</label>
+            <input type="text" id="editExameSala" class="form-input" value="${item.sala || 'RM-01'}" required>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="editExameHorario">Horário Agendado:</label>
+            <input type="text" id="editExameHorario" class="form-input" value="${item.horario || '08:00'}" placeholder="HH:mm">
+          </div>
+        </div>
+
+        <!-- Seção TUSS / TISS e Vinculação Automática -->
+        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label class="form-label" style="margin: 0; display: flex; align-items: center; gap: 8px; color: var(--cyan-400); font-weight: 600; font-size: 0.9rem;">
+              <i class="fa-solid fa-barcode"></i> Código TUSS / TISS / RIS (* Selecione da lista ou digite):
+            </label>
+            <span style="font-size: 0.72rem; color: var(--cyan-300); background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2); border-radius: 6px; padding: 2px 8px;">
+              <i class="fa-solid fa-bolt"></i> Auto-vinculação em Tempo Real
+            </span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;">
+            <div>
+              <label class="form-label" for="editExameSelectTussRapido" style="font-size: 0.75rem; color: var(--text-muted);">
+                Selecionar do Catálogo Clínico (Lista Rápida):
+              </label>
+              <select id="editExameSelectTussRapido" class="form-input" style="cursor: pointer; font-size: 0.85rem;" onchange="document.getElementById('editExameCodigoTuss').value = this.value; adminReagirAoCodigoTuss(this.value, 'editExame');">
+                <option value="">-- Escolha um procedimento do catálogo --</option>
+                ${listaProcs.map(p => `
+                  <option value="${p.codigoTuss}" ${p.codigoTuss === codigoInicial ? 'selected' : ''}>[${p.modalidade}] ${p.codigoTuss} - ${p.nome}</option>
+                `).join('')}
+              </select>
+            </div>
+
+            <div>
+              <label class="form-label" for="editExameCodigoTuss" style="font-size: 0.75rem; color: var(--text-muted);">
+                Ou Digite o Código TUSS / TISS:
+              </label>
+              <input type="text" id="editExameCodigoTuss" list="listaProcedimentosTussDatalistEdit" class="form-input" value="${codigoInicial}" placeholder="Ex: 41101153 ou 41001095" style="font-family: var(--font-mono); font-weight: 600; color: var(--cyan-300);" oninput="adminReagirAoCodigoTuss(this.value, 'editExame')" onchange="adminReagirAoCodigoTuss(this.value, 'editExame')" required>
+            </div>
+          </div>
+
+          <div id="editExameTussFeedback"></div>
+        </div>
+
+        <!-- Parâmetros Clínicos Vinculados -->
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
+          <div class="form-field">
+            <label class="form-label" for="editExameTipoFormulario">
+              <i class="fa-solid fa-file-waveform" style="color: var(--cyan-400);"></i> Formulário / Checklist de Triagem (Auto):
+            </label>
+            <select id="editExameTipoFormulario" class="form-input" style="cursor: pointer;">
+              ${Object.values(PROTOCOLOS_CATALOGO_INFO).map(p => `
+                <option value="${p.id}" ${item.tipoFormulario === p.id ? 'selected' : ''}>${p.nome} (${p.modalidade})</option>
+              `).join('')}
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="editExameModalidade">Modalidade (Auto):</label>
             <select id="editExameModalidade" class="form-input" style="cursor: pointer;">
               <option value="RM" ${item.modalidade === 'RM' ? 'selected' : ''}>Ressonância (RM)</option>
               <option value="TC" ${item.modalidade === 'TC' ? 'selected' : ''}>Tomografia (TC)</option>
             </select>
-          </div>
-          <div class="form-field">
-            <label class="form-label" for="editExameSala">Sala Operacional:</label>
-            <input type="text" id="editExameSala" class="form-input" value="${item.sala || 'RM-01'}" required>
           </div>
         </div>
 
@@ -2646,26 +2877,9 @@ function adminAbrirModalEditarExame(exameId) {
           <input type="text" id="editExameProcedimento" class="form-input" value="${item.procedimento || ''}" required>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-          <div class="form-field">
-            <label class="form-label" for="editExameSegmento">Segmento / Lateralidade:</label>
-            <input type="text" id="editExameSegmento" class="form-input" value="${item.segmentoLado || ''}" placeholder="Ex: Lombar, Direito, Tórax">
-          </div>
-          <div class="form-field">
-            <label class="form-label" for="editExameHorario">Horário Agendado:</label>
-            <input type="text" id="editExameHorario" class="form-input" value="${item.horario || '08:00'}" placeholder="HH:mm">
-          </div>
-        </div>
-
         <div class="form-field">
-          <label class="form-label" for="editExameTipoFormulario">
-            <i class="fa-solid fa-file-waveform" style="color: var(--cyan-400);"></i> Formulário / Checklist de Triagem:
-          </label>
-          <select id="editExameTipoFormulario" class="form-input" style="cursor: pointer;">
-            ${Object.values(PROTOCOLOS_CATALOGO_INFO).map(p => `
-              <option value="${p.id}" ${item.tipoFormulario === p.id ? 'selected' : ''}>${p.nome}</option>
-            `).join('')}
-          </select>
+          <label class="form-label" for="editExameSegmento">Segmento / Lateralidade:</label>
+          <input type="text" id="editExameSegmento" class="form-input" value="${item.segmentoLado || ''}" placeholder="Ex: Lombar, Direito, Tórax">
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);">
@@ -2682,20 +2896,27 @@ function adminAbrirModalEditarExame(exameId) {
 
   document.body.appendChild(container);
 
+  if (codigoInicial) {
+    adminReagirAoCodigoTuss(codigoInicial, 'editExame');
+  }
+
   document.getElementById('formEditarExameModal').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('btnSalvarEdicaoExame');
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
 
+    const novoCodigoTuss = document.getElementById('editExameCodigoTuss')?.value.trim();
+    const match = buscarProcedimentoPorCodigoTuss(novoCodigoTuss);
+
     const novoNome = document.getElementById('editExameNome').value.trim();
     const novoCpf = document.getElementById('editExameCpf').value.trim();
     const novoPeso = parseFloat(document.getElementById('editExamePeso').value) || item.pesoKg;
-    const novaMod = document.getElementById('editExameModalidade').value;
-    const novoProc = document.getElementById('editExameProcedimento').value.trim();
-    const novoSeg = document.getElementById('editExameSegmento').value.trim();
+    const novaMod = match ? match.protocoloInfo.modalidade : document.getElementById('editExameModalidade').value;
+    const novoProc = match ? match.procedimento.nome : document.getElementById('editExameProcedimento').value.trim();
+    const novoSeg = match ? (match.procedimento.regiao || '') : document.getElementById('editExameSegmento').value.trim();
     const novaSala = document.getElementById('editExameSala').value.trim();
-    const novoForm = document.getElementById('editExameTipoFormulario').value;
+    const novoForm = match ? match.protocoloId : document.getElementById('editExameTipoFormulario').value;
     const novoHorario = document.getElementById('editExameHorario').value.trim();
 
     const payload = {
@@ -2704,6 +2925,7 @@ function adminAbrirModalEditarExame(exameId) {
       pesoKg: novoPeso,
       modalidade: novaMod === 'TC' ? 1 : 2,
       procedimento: novoProc,
+      codigoProcedimento: novoCodigoTuss,
       segmentoLado: novoSeg,
       tipoFormulario: novoForm,
       sala: novaSala,
@@ -2720,6 +2942,7 @@ function adminAbrirModalEditarExame(exameId) {
       item.pesoKg = novoPeso;
       item.modalidade = novaMod;
       item.procedimento = novoProc;
+      item.codigoProcedimento = novoCodigoTuss;
       item.segmentoLado = novoSeg;
       item.tipoFormulario = novoForm;
       item.sala = novaSala;
@@ -2775,8 +2998,10 @@ function adminAbrirModalNovoExame() {
   container.style.justifyContent = 'center';
   container.style.zIndex = '9999';
 
+  const listaProcs = obterListaTodosProcedimentosTuss();
+
   container.innerHTML = `
-    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 680px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
+    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 720px; width: 95%; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
       <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">
@@ -2784,7 +3009,7 @@ function adminAbrirModalNovoExame() {
           </div>
           <div>
             <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">Novo Agendamento de Exame (Teste Clínico)</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Cadastre um novo paciente na grade para testar triagem, semáforo e contraste.</p>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Cadastre um agendamento na grade com preenchimento inteligente via código TUSS.</p>
           </div>
         </div>
         <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalNovoExameAdmin').remove()" style="padding: 6px 10px;">
@@ -2792,7 +3017,15 @@ function adminAbrirModalNovoExame() {
         </button>
       </div>
 
+      <!-- Datalist com todos os procedimentos TUSS/RIS do catálogo -->
+      <datalist id="listaProcedimentosTussDatalist">
+        ${listaProcs.map(p => `
+          <option value="${p.codigoTuss}">${p.codigoTuss} - ${p.nome} (${p.protocoloNome})</option>
+        `).join('')}
+      </datalist>
+
       <form id="formNovoExameModal" style="padding: 22px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
+        <!-- Seção 1: Dados do Paciente -->
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
           <div class="form-field">
             <label class="form-label" for="novoExameNome">Nome Completo do Paciente:</label>
@@ -2804,7 +3037,7 @@ function adminAbrirModalNovoExame() {
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;">
           <div class="form-field">
             <label class="form-label" for="novoExameIdade">Idade:</label>
             <input type="number" id="novoExameIdade" class="form-input" value="42" required>
@@ -2820,8 +3053,58 @@ function adminAbrirModalNovoExame() {
             <label class="form-label" for="novoExamePeso">Peso (Kg):</label>
             <input type="number" step="0.1" id="novoExamePeso" class="form-input" value="75.0" required>
           </div>
+        </div>
+
+        <!-- Seção 2: Inteligência TUSS / TISS e Vinculação Automática de Formulário -->
+        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label class="form-label" style="margin: 0; display: flex; align-items: center; gap: 8px; color: var(--cyan-400); font-weight: 600; font-size: 0.9rem;">
+              <i class="fa-solid fa-barcode"></i> Procedimento TUSS / TISS (* Selecione ou digite):
+            </label>
+            <span style="font-size: 0.72rem; color: var(--cyan-300); background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2); border-radius: 6px; padding: 2px 8px;">
+              <i class="fa-solid fa-bolt"></i> Auto-vinculação em Tempo Real
+            </span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;">
+            <div>
+              <label class="form-label" for="novoExameSelectTussRapido" style="font-size: 0.75rem; color: var(--text-muted);">
+                Selecionar do Catálogo Clínico (Lista Rápida):
+              </label>
+              <select id="novoExameSelectTussRapido" class="form-input" style="cursor: pointer; font-size: 0.85rem;" onchange="document.getElementById('novoExameCodigoTuss').value = this.value; adminReagirAoCodigoTuss(this.value, 'novoExame');">
+                <option value="">-- Escolha um procedimento do catálogo --</option>
+                ${listaProcs.map(p => `
+                  <option value="${p.codigoTuss}">[${p.modalidade}] ${p.codigoTuss} - ${p.nome}</option>
+                `).join('')}
+              </select>
+            </div>
+
+            <div>
+              <label class="form-label" for="novoExameCodigoTuss" style="font-size: 0.75rem; color: var(--text-muted);">
+                Ou Digite o Código TUSS / TISS:
+              </label>
+              <input type="text" id="novoExameCodigoTuss" list="listaProcedimentosTussDatalist" class="form-input" placeholder="Ex: 41101153 ou 41001095" value="41101170" style="font-family: var(--font-mono); font-weight: 600; color: var(--cyan-300);" oninput="adminReagirAoCodigoTuss(this.value, 'novoExame')" onchange="adminReagirAoCodigoTuss(this.value, 'novoExame')" required>
+            </div>
+          </div>
+
+          <!-- Feedback em tempo real com status da vinculação -->
+          <div id="novoExameTussFeedback"></div>
+        </div>
+
+        <!-- Seção 3: Parâmetros Clínicos Vinculados (Bloqueados para manter conformidade) -->
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
           <div class="form-field">
-            <label class="form-label" for="novoExameModalidade">Modalidade:</label>
+            <label class="form-label" for="novoExameTipoFormulario">
+              <i class="fa-solid fa-file-waveform" style="color: var(--cyan-400);"></i> Formulário / Checklist de Triagem (Auto):
+            </label>
+            <select id="novoExameTipoFormulario" class="form-input" style="cursor: pointer;">
+              ${Object.values(PROTOCOLOS_CATALOGO_INFO).map(p => `
+                <option value="${p.id}">${p.nome} (${p.modalidade})</option>
+              `).join('')}
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="novoExameModalidade">Modalidade (Auto):</label>
             <select id="novoExameModalidade" class="form-input" style="cursor: pointer;" onchange="adminAtualizarFormulariosModalNovo(this.value)">
               <option value="RM">Ressonância (RM)</option>
               <option value="TC">Tomografia (TC)</option>
@@ -2849,25 +3132,6 @@ function adminAbrirModalNovoExame() {
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 14px;">
-          <div class="form-field">
-            <label class="form-label" for="novoExameCodigoTuss">
-              <i class="fa-solid fa-barcode" style="color: var(--cyan-400);"></i> Código TUSS / RIS (* Obrigatório):
-            </label>
-            <input type="text" id="novoExameCodigoTuss" class="form-input" value="41101170" placeholder="Ex: 41101170 ou 41001095" required>
-          </div>
-          <div class="form-field">
-            <label class="form-label" for="novoExameTipoFormulario">
-              <i class="fa-solid fa-file-waveform" style="color: var(--cyan-400);"></i> Formulário / Checklist de Triagem:
-            </label>
-            <select id="novoExameTipoFormulario" class="form-input" style="cursor: pointer;">
-              ${Object.values(PROTOCOLOS_CATALOGO_INFO).filter(p => p.modalidade === 'RM').map(p => `
-                <option value="${p.id}">${p.nome}</option>
-              `).join('')}
-            </select>
-          </div>
-        </div>
-
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);">
           <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalNovoExameAdmin').remove()">
             Cancelar
@@ -2882,13 +3146,15 @@ function adminAbrirModalNovoExame() {
 
   document.body.appendChild(container);
 
+  // Inicializa imediatamente a auto-vinculação em tempo real do TUSS inicial
+  adminReagirAoCodigoTuss('41101170', 'novoExame');
+
   document.getElementById('formNovoExameModal').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('btnSalvarNovoExame');
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Agendando...';
 
-    const modalidade = document.getElementById('novoExameModalidade').value;
     const codigoTussVal = document.getElementById('novoExameCodigoTuss')?.value.trim();
 
     if (!codigoTussVal) {
@@ -2899,18 +3165,25 @@ function adminAbrirModalNovoExame() {
       return;
     }
 
+    // Busca dados vinculados pelo TUSS
+    const match = buscarProcedimentoPorCodigoTuss(codigoTussVal);
+    const modalidadeStr = match ? match.protocoloInfo.modalidade : document.getElementById('novoExameModalidade').value;
+    const tipoFormularioStr = match ? match.protocoloId : document.getElementById('novoExameTipoFormulario').value;
+    const procNomeStr = match ? match.procedimento.nome : document.getElementById('novoExameProcedimento').value.trim();
+    const segStr = match ? (match.procedimento.regiao || '') : document.getElementById('novoExameSegmento').value.trim();
+
     const payload = {
       pacienteNome: document.getElementById('novoExameNome').value.trim(),
       documentoCpf: document.getElementById('novoExameCpf').value.trim(),
       idade: parseInt(document.getElementById('novoExameIdade').value) || 35,
       sexo: document.getElementById('novoExameSexo').value,
       pesoKg: parseFloat(document.getElementById('novoExamePeso').value) || 70,
-      modalidade: modalidade === 'TC' ? 1 : 2,
+      modalidade: modalidadeStr === 'TC' ? 1 : 2,
       codigoProcedimento: codigoTussVal,
-      procedimento: document.getElementById('novoExameProcedimento').value.trim(),
-      segmentoLado: document.getElementById('novoExameSegmento').value.trim(),
+      procedimento: procNomeStr,
+      segmentoLado: segStr,
       sala: document.getElementById('novoExameSala').value.trim(),
-      tipoFormulario: document.getElementById('novoExameTipoFormulario').value,
+      tipoFormulario: tipoFormularioStr,
       horario: document.getElementById('novoExameHorario').value.trim()
     };
 
@@ -2928,8 +3201,9 @@ function adminAbrirModalNovoExame() {
           pacienteNome: payload.pacienteNome,
           documentoCpf: payload.documentoCpf,
           pesoKg: payload.pesoKg,
-          modalidade: modalidade,
+          modalidade: modalidadeStr,
           procedimento: payload.procedimento,
+          codigoProcedimento: payload.codigoProcedimento,
           segmentoLado: payload.segmentoLado,
           sala: payload.sala,
           tipoFormulario: payload.tipoFormulario,

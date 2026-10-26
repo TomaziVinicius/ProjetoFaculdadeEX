@@ -36,9 +36,10 @@ Esta solução atende às seguintes necessidades clínicas e operacionais:
    - O documento é salvo automaticamente na pasta física do sistema operacional:
      `C:\Users\<usuario>\Documents\TriagensDiagnosticoImagem\`
    - O caminho físico completo é persistido na coluna `caminho_arquivo_armazenado` no banco de dados e registrado na trilha de auditoria.
-6. **Gestão Dinâmica de Protocolos Anatômicos & Validação Estrita de Códigos TUSS e RIS**:
+6. **Gestão Dinâmica de Protocolos Anatômicos & Inteligência TUSS/RIS em Tempo Real**:
    - **Criação e Expansão Visual**: Administradores podem criar novos protocolos clínicos diretamente no painel (ex: `RM_CRANIO`, `TC_FACE`) definindo perguntas especializadas, criticidade de semáforo e regras impeditivas.
-   - **Validação de Unicidade Global de TUSS e RIS**: O preenchimento do código TUSS (terminologia unificada da saúde suplementar) ou RIS é **estritamente obrigatório** e o sistema impede o cadastro de códigos duplicados ou já pertencentes a outro exame do catálogo.
+   - **Auto-vinculação Inteligente de Formulário**: Ao digitar ou selecionar um código TUSS/TISS (ex: `41101153`), o sistema carrega instantaneamente o formulário clínico correspondente, modalidade e descrição, **bloqueando a edição manual** para assegurar conformidade médica com o catálogo.
+   - **Suporte a Múltiplos Exames com Mesmo TUSS**: Sem regras impeditivas de duplicidade na Worklist, permitindo que vários pacientes e laudos utilizem o mesmo código TUSS, refletindo a rotina real de clínicas e hospitais.
    - **Fallback de Segurança Universal**: Se um exame for agendado com protocolo inédito ou não mapeado, o motor clínico aciona automaticamente as regras universais de segurança da modalidade (RM ou TC), garantindo zero travamentos e proteção máxima ao paciente.
 
 ---
@@ -289,11 +290,12 @@ Para maximizar a produtividade do operador no posto clínico:
      `C:\Users\<usuario>\Documents\TriagensDiagnosticoImagem\`
   4. Um modal de confirmação exibe o caminho exato gravado em disco com a opção de **Imprimir Laudo**.
 
-### 7. Gestão Dinâmica de Protocolos Anatômicos & Validação Estrita de Códigos TUSS e RIS
+### 7. Gestão Dinâmica de Protocolos Anatômicos & Inteligência TUSS/RIS em Tempo Real
 * **Painel Administrativo (`admin`)**:
   * **Criação de Protocolos Anatômicos (`+ Novo Protocolo Anatômico`)**: Permite cadastrar regiões anatômicas customizadas (ex: *RM Crânio*, *RM Joelho*, *TC Face*) configurando perguntas clínicas específicas, classificação de Semáforo (🔴 Impeditiva, 🟡 Alerta, 🟢 Informativa) e regras de justificativa radiológica.
-  * **Validação Obrigatória e Não-Repetida de Códigos TUSS e RIS**:
-    * O preenchimento do código TUSS/RIS é **estritamente obrigatório** ao cadastrar ou vincular procedimentos.
-    * O sistema valida a **unicidade global** em tempo real contra toda a tabela de procedimentos cadastrados. Caso o código já pertença a outro exame (ex: `41101153`), o cadastro é bloqueado com mensagem clara prevenindo duplicidade.
+  * **Auto-vinculação Inteligente de Formulário em Tempo Real**:
+    * Ao abrir o modal de agendamento e selecionar ou digitar um código TUSS/TISS (ex: `41101153` para Cervical ou `41001095` para Tórax), o sistema atualiza em tempo real o formulário clínico, modalidade e descrição.
+    * Os campos vinculados são **bloqueados para edição manual**, garantindo integridade clínica e prevenindo seleções incorretas.
+    * O sistema permite múltiplos agendamentos e laudos com o mesmo código TUSS (sem restrição indevida de duplicidade), espelhando o fluxo real dos sistemas HIS/RIS.
   * **Edição e Exclusão Segura de Exames**: Botões com design dark ergonômico no painel para editar dados do paciente (com recálculo de dose de contraste) ou excluir agendamentos com limpeza em cascata e registro em auditoria.
   * **Fallback Universal de Contingência**: Caso qualquer exame na fila possua protocolo não mapeado, o sistema executa automaticamente o checklist de segurança base da modalidade, evitando falhas de execução e assegurando a checagem obrigatória contra riscos magnéticos ou nefrotóxicos.

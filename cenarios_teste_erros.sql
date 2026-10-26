@@ -194,11 +194,12 @@ VALUES (
 -- 6. NOVOS CENÁRIOS: TUSS/RIS OBRIGATÓRIO, PROTOCOLOS INÉDITOS E CRUD ADMIN
 -- ------------------------------------------------------------------------------
 
--- CENÁRIO E11: VALIDAÇÃO DE UNICIDADE E OBRIGATORIEDADE DE CÓDIGO TUSS/RIS
--- Tentativa de vincular ou criar exame com código TUSS já existente no catálogo:
--- TUSS '41101153' (Já pertence à 'RM de Coluna Cervical' em RM_COLUNA).
--- Comportamento esperado: O sistema rejeita com erro:
--- "Código TUSS/RIS '41101153' já cadastrado no exame 'RM de Coluna Cervical' (Protocolo: RM Coluna). Códigos duplicados não são permitidos."
+-- CENÁRIO E11: VINCULAÇÃO AUTOMÁTICA EM TEMPO REAL E OBRIGATORIEDADE DE TUSS/RIS (SEM RESTRIÇÃO DE DUPLICIDADE)
+-- Ao agendar um exame e selecionar/digitar um código TUSS existente (ex: '41101153' - RM Coluna Cervical):
+-- Comportamento esperado: O sistema traz automaticamente o formulário ('RM_COLUNA'), modalidade ('RM')
+-- e descrição, bloqueando a edição manual para manter fidelidade com o catálogo clínico.
+-- O sistema permite múltiplos agendamentos e laudos com o mesmo código TUSS (prática padrão hospitalar).
+-- Caso o operador deixe o campo de código TUSS/RIS em branco, o sistema bloqueia com aviso de obrigatoriedade.
 
 -- CENÁRIO E12: EXAME COM PROTOCOLO ANATÔMICO INÉDITO (FALLBACK DE SEGURANÇA RM/TC)
 -- Inserção de exame com protocolo não mapeado ('RM_CRANIO' ou 'TC_FACE'):
