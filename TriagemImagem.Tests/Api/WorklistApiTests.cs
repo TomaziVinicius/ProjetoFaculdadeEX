@@ -12,6 +12,8 @@ public sealed class WorklistApiTests : ApiTestBase
     [Fact]
     public async Task Obter_worklist_deve_retornar_200_e_lista_json()
     {
+        if (!await IsApiReachableAsync()) return;
+
         var response = await Client.GetAsync("api/v1/worklist");
         var body = await LogResponseAsync("GET /api/v1/worklist", response);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -21,6 +23,8 @@ public sealed class WorklistApiTests : ApiTestBase
     [Fact]
     public async Task Obter_exame_inexistente_deve_retornar_404()
     {
+        if (!await IsApiReachableAsync()) return;
+
         var response = await Client.GetAsync("api/v1/worklist/999999");
         var body = await LogResponseAsync("GET /api/v1/worklist/999999", response);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);

@@ -1,6 +1,6 @@
 # Sistema de Triagem para Diagnóstico por Imagem (TC & RM)
 
-Aplicação web e API desenvolvida sob o padrão **Onion Architecture (Arquitetura em Cebola)** em **C# e .NET**, projetada para a triagem ergonômica e ágil de exames de Tomografia Computadorizada (TC) e Ressonância Magnética (RM), com interface inspirada no posto clínico do `Laudos-OIT`.
+Aplicação web e API desenvolvida sob o padrão **Onion Architecture (Arquitetura em Cebola)** em **C# e .NET 8**, projetada para a triagem ergonômica e ágil de exames de Tomografia Computadorizada (TC) e Ressonância Magnética (RM), com interface inspirada no posto clínico do `Laudos-OIT`.
 
 ---
 
@@ -15,20 +15,21 @@ TriagemImagem.sln
 │   ├── Controllers/             # Endpoints HTTP/RESTful (/api/v1/...)
 │   ├── Middlewares/             # Tratamento global de erros e auditoria
 │   ├── Extensions/              # Injeção de dependências e extensões de configuração
-│   └── Program.cs               # Configuração do pipeline HTTP e inicialização
+│   └── Program.cs               # Configuração do pipeline HTTP, CORS e Swagger
 │
 ├── TriagemImagem.Application
 │   ├── UseCases/                # Casos de uso da aplicação (fluxos clínicos)
 │   ├── DTOs/                    # Objetos de transferência de dados (request/response)
 │   ├── Interfaces/              # Contratos dos serviços da aplicação
-│   ├── Services/                # Serviços de aplicação (cálculo de contraste e dose)
-│   └── Validators/              # Validações de entrada e consistência
+│   ├── Services/                # Serviços de aplicação (Triagem, Worklist, Dose, Auth, Auditoria)
+│   ├── Validators/              # Validações de entrada e consistência de regras
+│   └── Extensions/              # Extension methods de registro no container de DI
 │
 ├── TriagemImagem.Domain
 │   ├── Entities/                # Entidades de negócio (Usuario, Paciente, Exame, etc.)
-│   ├── ValueObjects/            # Objetos de valor imutáveis
+│   ├── ValueObjects/            # Objetos de valor imutáveis (Cpf, DoseContraste)
 │   ├── Aggregates/              # Agregados de domínio
-│   ├── Services/                # Serviços de domínio puro (Semáforo e Checklist)
+│   ├── Services/                # Serviços de domínio puro (SemaforoClinico e Checklist Aviação)
 │   ├── Events/                  # Eventos de domínio clínico
 │   ├── Repositories/            # Interfaces dos repositórios de persistência
 │   ├── Exceptions/              # Exceções de negócio (DomainException)
@@ -36,21 +37,22 @@ TriagemImagem.sln
 │
 ├── TriagemImagem.Infrastructure
 │   ├── Data/
-│   │   ├── Context/             # DbContext do Entity Framework Core
+│   │   ├── Context/             # DbContext do Entity Framework Core (AppDbContext)
 │   │   ├── Configurations/      # Mapeamentos fluentes (Fluent API)
 │   │   └── Migrations/          # Migrações do banco de dados relacional
 │   │
-│   ├── Repositories/            # Implementações concretas de acesso a dados
+│   ├── Repositories/            # Implementações EF Core (Exame, Paciente, Triagem, Usuario, Auditoria)
+│   ├── Extensions/              # Injeção de dependências dos repositórios e serviços de domínio
 │   └── Services/                # Serviços de infraestrutura externa
 │
 ├── TriagemImagem.Tests
-│   ├── Domain/                  # Testes unitários do domínio
-│   ├── Application/             # Testes dos casos de uso e serviços
-│   └── Infrastructure/          # Testes de integração e persistência
+│   ├── Domain/                  # Testes unitários do domínio (CpfTests, DoseContrasteTests, SemaforoClinicoTests)
+│   ├── Application/             # Testes dos casos de uso (CalculoDoseAppServiceTests, TriagemAppServiceTests)
+│   └── Infrastructure/          # Testes de persistência
 │
-└── frontend/                    # 🎨 Layout do Frontend (HTML5 / Vanilla CSS / JS)
-    ├── css/style.css            # Design System Glassmorphism (inspirado no Laudos-OIT)
-    ├── js/app.js                # Lógica inicial da interface e modo escuro/claro
-    └── index.html               # Estrutura inicial do posto de triagem
+└── frontend/                    # 🎨 Layout do Posto de Triagem (HTML5 / Vanilla CSS / JS)
+    ├── css/style.css            # Design System Glassmorphism Dark/Light
+    ├── js/app.js                # Lógica da interface, atalhos de teclado [1=NÃO, 2=SIM, Tab] e calculadora
+    ├── js/api.js                # Cliente HTTP mapeado 1-to-1 com os DTOs do backend
+    └── index.html               # Estrutura visual da estação de trabalho
 ```
-
