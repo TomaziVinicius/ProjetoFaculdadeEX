@@ -1,168 +1,278 @@
-# Sistema de Triagem para Diagnóstico por Imagem (TC & RM)
+# 🏥 Sistema de Triagem para Diagnóstico por Imagem (TC & RM)
 
-Aplicação web e API desenvolvida sob o padrão **Onion Architecture (Arquitetura em Cebola)** em **C# e .NET 8**, projetada para a triagem ergonômica e ágil de exames de Tomografia Computadorizada (TC) e Ressonância Magnética (RM), com interface inspirada no posto clínico do `Laudos-OIT`.
+![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)
+![C# 12](https://img.shields.io/badge/C%23-12.0-239120?logo=csharp&logoColor=white)
+![Architecture](https://img.shields.io/badge/Architecture-Onion%20Architecture-blue)
+![Database](https://img.shields.io/badge/Database-MySQL%20%7C%20SQLite%20(Auto--Detect)-00758F?logo=mysql&logoColor=white)
+![Tests](https://img.shields.io/badge/Tests-38%20Passed-brightgreen)
+![Swagger](https://img.shields.io/badge/API%20Docs-Swagger%20OpenAPI-85EA2D?logo=swagger&logoColor=black)
+
+Aplicação web e API RESTful corporativa desenvolvida para o **Posto de Triagem Clínica em Serviços de Diagnóstico por Imagem**. O sistema automatiza a recepção e avaliação de segurança de pacientes agendados para **Tomografia Computadorizada (TC)** e **Ressonância Magnética (RM)**, aplicando protocolos de segurança baseados no modelo de **Checklist da Aviação** (Semáforo Clínico Verde, Amarelo e Vermelho) e diretrizes do CBR/ACR.
 
 ---
 
-## 1. 🏗️ Arquitetura da Solução (Onion Architecture)
+## 1. 📋 Descrição da Solução
 
-A organização das camadas e pastas do projeto segue rigorosamente o padrão arquitetural em cebola:
+Em centros de diagnóstico por imagem, incidentes como a entrada de pacientes portadores de marcapasso em salas de RM ou a administração de contraste iodado em pacientes nefropatas representam riscos severos à integridade do paciente. 
+
+Esta solução atende às seguintes necessidades clínicas e operacionais:
+
+1. **Consumo de Worklist Hospitalar (Conceito HIS/RIS - DICOM Modality Worklist)**:
+   - Elimina retrabalho de cadastro e erros de digitação ao consumir os pedidos agendados diretamente do sistema do laboratório/hospital.
+2. **Questionários Clínicos Especializados por Região Anatômica**:
+   - O sistema reconhece o procedimento solicitado e carrega dinamicamente o formulário clínico correspondente (referenciado nas fichas do Instituto de Diagnóstico por Imagem):
+     * **RM de Coluna (Cervical / Torácica / Lombar)**: Segmento examinado, irradiação de dor para membros, histórico cirúrgico com placas/parafusos, osteoporose e semáforo da aviação.
+     * **RM de Braço / Antebraço (Membro Superior)**: Lado examinado (Direito/Esquerdo), prática de esportes/esforço repetitivo, suspeita de ruptura tendínea e histórico de cirurgias.
+     * **RM de Bacia / Quadril (Articulações Coxofemorais)**: Lado, uso contínuo de corticosteroides (rastreamento de osteonecrose da cabeça femoral), histórico de doença na infância (Perthes/displasia) e lesão labral.
+     * **TC de Tórax e Abdômen**: Rastreamento de nefropatia induzida por contraste, uso de metformina, jejum e gravidez.
+3. **Avaliação Automatizada por Semáforo de Risco Clínico**:
+   - **🟢 VERDE (Liberado)**: Ausência de contraindicações. Exame apto para execução imediata.
+   - **🟡 AMARELO (Atenção / Protocolo Especial)**: Fatores que requerem ajuste (ex: metformina, profilaxia alérgica ou claustrofobia leve).
+   - **🔴 VERMELHO (Bloqueio Absoluto)**: Presença de itens impeditivos de segurança clínica (marcapasso em RM, clipes ferromagnéticos, alergia prévia grave a iodo). O sistema bloqueia o exame no banco e impede a liberação.
+4. **Calculadora de Dosagem de Meio de Contraste**:
+   - Cálculo automático por peso corpóreo (TC: 1.5 mL/kg, teto 150 mL; RM: 0.2 mL/kg, teto 25 mL) com registro obrigatório de lote para rastreabilidade ANVISA.
+5. **Arquivamento Digital Automático em Documentos**:
+   - Ao finalizar a triagem, o sistema compila uma ficha clínica oficial timbrada em HTML com cabeçalho institucional, dados demográficos, respostas do questionário, resultado do semáforo, lote do contraste e assinatura do operador.
+   - O documento é salvo automaticamente na pasta física do sistema operacional:
+     `C:\Users\<usuario>\Documents\TriagensDiagnosticoImagem\`
+   - O caminho físico completo é persistido na coluna `caminho_arquivo_armazenado` no banco de dados e registrado na trilha de auditoria.
+
+---
+
+## 2. 💻 Tecnologias Utilizadas
+
+| Camada / Função | Tecnologia | Finalidade no Projeto |
+| :--- | :--- | :--- |
+| **Linguagem Principal** | C# 12 | Desenvolvimento orientado a objetos e regras de domínio ricas |
+| **Plataforma / Runtime** | .NET 8 (LTS) | Framework de alta performance para a Web API e CLI |
+| **Framework Web** | ASP.NET Core Web API | Criação de controllers RESTful, injeção de dependência e middlewares |
+| **Mapeamento Objeto-Relacional** | Entity Framework Core 8 | Mapeamento relacional com Fluent API e controle transacional |
+| **Bancos de Dados** | MySQL 8.0 & SQLite Portátil | Arquitetura Multi-Banco com auto-detecção por socket TCP |
+| **Documentação Interativa** | Swagger / OpenAPI v1 | Exploração e teste interativo de todos os endpoints HTTP |
+| **Criptografia / Segurança** | BCrypt.Net-Next | Hash irreversível de senhas de usuários operacionais |
+| **Framework de Testes** | xUnit & Moq | Execução de testes unitários de domínio, serviços e API |
+| **Frontend** | HTML5, Vanilla CSS3 & JavaScript (ES6+) | Interface responsiva Glassmorphism, atalhos de teclado e tema Dark/Light |
+| **Tipografia & Ícones** | Outfit, Plus Jakarta Sans, JetBrains Mono & FontAwesome 6 | Ergonomia visual e identificação de status clínicos |
+
+---
+
+## 3. 🏗️ Estrutura do Projeto (Onion Architecture)
+
+O projeto adota rigorosamente a **Onion Architecture (Arquitetura em Cebola)**, garantindo que o núcleo de regras de negócios e segurança clínica não dependa de frameworks ou bancos de dados externos:
 
 ```text
 TriagemImagem.sln
 │
-├── TriagemImagem.Api
-│   ├── Controllers/             # Endpoints HTTP/RESTful (/api/v1/...)
-│   ├── Middlewares/             # Tratamento global de erros e auditoria
-│   ├── Extensions/              # Injeção de dependências e extensões de configuração
-│   └── Program.cs               # Configuração do pipeline HTTP, CORS e Swagger
+├── TriagemImagem.Domain/            # 1. NÚCLEO DO DOMÍNIO (Sem dependências externas)
+│   ├── Entities/                    # Entidades (Usuario, Paciente, Exame, FormularioTriagem, WorklistLab)
+│   ├── ValueObjects/                # Objetos de Valor Imutáveis (Cpf, DoseContraste)
+│   ├── Enums/                       # StatusExame, StatusRiscoSemaforo, ModalidadeExame, PerfilUsuario
+│   ├── Exceptions/                  # DomainException (erros de regra de negócio)
+│   ├── Repositories/                # Contratos dos Repositórios (IExame, ITriagem, IWorklistLab, etc.)
+│   └── Services/                    # Regras puras do Semáforo Clínico (ISemaforoClinicoDomainService)
 │
-├── TriagemImagem.Application
-│   ├── UseCases/                # Casos de uso da aplicação (fluxos clínicos)
-│   ├── DTOs/                    # Objetos de transferência de dados (request/response)
-│   ├── Interfaces/              # Contratos dos serviços da aplicação
-│   ├── Services/                # Serviços de aplicação (Triagem, Worklist, Dose, Auth, Auditoria)
-│   ├── Validators/              # Validações de entrada e consistência de regras
-│   └── Extensions/              # Extension methods de registro no container de DI
+├── TriagemImagem.Application/       # 2. CAMADA DE APLICAÇÃO (Casos de Uso)
+│   ├── DTOs/                        # Request e Response DTOs de Auth, Worklist, Triagem e Auditoria
+│   ├── Interfaces/                  # Contratos de Serviços de Aplicação (ITriagemAppService, etc.)
+│   ├── Services/                    # TriagemAppService, WorklistAppService, RelatorioTriagemAppService
+│   ├── Validators/                  # TriagemValidator, DoseContrasteValidator
+│   └── Extensions/                  # Registro de dependências da aplicação
 │
-├── TriagemImagem.Domain
-│   ├── Entities/                # Entidades de negócio (Usuario, Paciente, Exame, etc.)
-│   ├── ValueObjects/            # Objetos de valor imutáveis (Cpf, DoseContraste)
-│   ├── Aggregates/              # Agregados de domínio
-│   ├── Services/                # Serviços de domínio puro (SemaforoClinico e Checklist Aviação)
-│   ├── Events/                  # Eventos de domínio clínico
-│   ├── Repositories/            # Interfaces dos repositórios de persistência
-│   ├── Exceptions/              # Exceções de negócio (DomainException)
-│   └── Enums/                   # Enums (PerfilUsuario, ModalidadeExame, StatusExame, StatusRisco)
-│
-├── TriagemImagem.Infrastructure
+├── TriagemImagem.Infrastructure/    # 3. CAMADA DE INFRAESTRUTURA (Persistência Externa)
 │   ├── Data/
-│   │   ├── Context/             # DbContext do Entity Framework Core (AppDbContext)
-│   │   ├── Configurations/      # Mapeamentos fluentes (Fluent API)
-│   │   └── Migrations/          # Migrações do banco de dados relacional
-│   │
-│   ├── Repositories/            # Implementações EF Core (Exame, Paciente, Triagem, Usuario, Auditoria)
-│   ├── Extensions/              # Injeção de dependências dos repositórios e serviços de domínio
-│   └── Services/                # Serviços de infraestrutura externa
+│   │   ├── Context/                 # AppDbContext (Banco 1) e WorklistLabDbContext (Banco 2)
+│   │   ├── Configurations/          # Mapeamento Fluent API das entidades
+│   │   └── Context/DbSeeder.cs      # Carga inicial automatizada de dados
+│   ├── Repositories/                # Implementações EF Core dos repositórios
+│   └── Extensions/                  # Registro de repositórios e contextos na DI
 │
-├── TriagemImagem.Tests
-│   ├── Domain/                  # Testes unitários do domínio (CpfTests, DoseContrasteTests, SemaforoClinicoTests)
-│   ├── Application/             # Testes dos casos de uso (CalculoDoseAppServiceTests, TriagemAppServiceTests)
-│   └── Infrastructure/          # Testes de persistência
+├── TriagemImagem.Api/               # 4. CAMADA DE ENTRADA HTTP (Web API REST)
+│   ├── Controllers/                 # AuthController, WorklistController, TriagemController, DatabaseHealthController
+│   ├── Middlewares/                 # ExceptionHandlingMiddleware (captura global de DomainException -> 400)
+│   ├── appsettings.json             # Strings de conexão dos Bancos 1 e 2
+│   └── Program.cs                   # Pipeline ASP.NET Core, CORS, Swagger e inicialização de bancos
 │
-└── frontend/                    # 🎨 Layout do Posto de Triagem (HTML5 / Vanilla CSS / JS)
-    ├── css/style.css            # Design System Glassmorphism Dark/Light
-    ├── js/app.js                # Lógica da interface, atalhos de teclado [1=NÃO, 2=SIM, Tab] e calculadora
-    ├── js/api.js                # Cliente HTTP mapeado 1-to-1 com os DTOs do backend
-    └── index.html               # Estrutura visual da estação de trabalho
+├── TriagemImagem.Tests/             # 5. TESTES AUTOMATIZADOS (xUnit)
+│   ├── Domain/                      # Testes de CPF, Dose de Contraste e Semáforo Clínico
+│   ├── Application/                 # Testes de casos de uso e geração de laudos em Documentos
+│   └── Api/                         # Testes de integração dos endpoints REST
+│
+├── schema.sql                       # Script DDL do Banco de Dados 1 (Triagem da Aplicação)
+├── schema_worklist_lab.sql          # Script DDL do Banco de Dados 2 (Worklist do Laboratório)
+│
+└── frontend/                        # 6. POSTO DE TRABALHO CLÍNICO (Interface Web)
+    ├── css/style.css                # Folha de estilo Glassmorphism Dark/Light
+    ├── js/api.js                    # Cliente HTTP integrado à API .NET
+    ├── js/app.js                    # Lógica da tela, atalhos de teclado e integração multi-banco
+    └── index.html                   # Página única (SPA) do posto de triagem
 ```
 
 ---
 
-## 2. 📊 Status Atual do Projeto (O que já está 100% pronto)
-
-| Componente | Detalhes Implementados | Status |
-| :--- | :--- | :---: |
-| **Banco de Dados MySQL** | Mapeamento relacional completo (`schema.sql`), Fluent API no EF Core (`AppDbContext`), Carga Inicial (`DbSeeder`). | ✅ Concluído |
-| **Domínio Clínico** | Value Objects `Cpf` (validação matemática) e `DoseContraste` (cálculo por kg e tetos máximos para TC/RM), `SemaforoClinicoDomainService` (regras puras do Checklist de Aviação: Verde, Amarelo e Vermelho/Bloqueado). | ✅ Concluído |
-| **Repositórios EF Core** | `ExameRepository`, `PacienteRepository`, `TriagemRepository`, `UsuarioRepository` e `AuditoriaRepository` implementados e registrados na DI. | ✅ Concluído |
-| **Camada Application** | Todos os DTOs de entrada e saída, Validadores (`TriagemValidator`, `DoseContrasteValidator`), Serviços de Aplicação (`TriagemAppService`, `WorklistAppService`, `CalculoDoseAppService`, `AuthAppService`, `AuditoriaAppService`). | ✅ Concluído |
-| **Testes Unitários** | Testes xUnit automatizados para Domínio e Aplicação em `TriagemImagem.Tests`. | ✅ Concluído |
-| **Frontend Ergonômico** | Worklist com busca e filtros, Ficha de Triagem com Checklist de Aviação, Semáforo Dinâmico, Calculadora de Dosagem em tempo real e cliente HTTP `api.js`. | ✅ Concluído |
-
----
-
-## 3. 🎯 Guia para o Desenvolvedor da API (O que precisa ser feito)
-
-Se você assumiu o desenvolvimento da **camada de API (`TriagemImagem.Api`)**, o seu trabalho já está 90% adiantado! Toda a lógica de negócios, banco de dados, regras clínicas e validações **já estão injetadas e prontas para uso**.
-
-Sua responsabilidade principal é implementar os **Controllers HTTP REST** e o **Tratamento de Erros/CORS** em `TriagemImagem.Api`.
-
-### Passo A: Habilitar o CORS no `Program.cs`
-Para que o navegador consiga fazer requisições do frontend para a API sem bloqueio de segurança:
-```csharp
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
-    });
-});
-
-// E antes de app.MapControllers():
-app.UseCors("AllowAll");
-```
-
----
-
-### Passo B: Criar os Controllers em `TriagemImagem.Api/Controllers/`
-
-Basta injetar as interfaces da camada `Application` (elas já estão registradas na Injeção de Dependências do .NET):
-
-#### 1. `AuthController.cs` (`/api/v1/auth`)
-* Injetar: `IAuthAppService`
-* Endpoints:
-  * `POST /api/v1/auth/login`: recebe `LoginRequestDto` e chama `_authService.AutenticarAsync(dto)`.
-
-#### 2. `WorklistController.cs` (`/api/v1/worklist`)
-* Injetar: `IWorklistAppService`
-* Endpoints:
-  * `GET /api/v1/worklist`: recebe query params de `FiltroWorklistDto` e chama `_worklistService.ObterWorklistAsync(filtro)`.
-  * `GET /api/v1/worklist/{id}`: chama `_worklistService.ObterExamePorIdAsync(id)`.
-  * `POST /api/v1/worklist/{id}/chamar`: recebe `{ usuarioId }` no corpo e chama `_worklistService.ChamarPacienteAsync(id, usuarioId)`.
-
-#### 3. `TriagemController.cs` (`/api/v1/triagem`)
-* Injetar: `ITriagemAppService` e `ICalculoDoseAppService`
-* Endpoints:
-  * `POST /api/v1/triagem`: recebe `SalvarTriagemRequestDto` e chama `_triagemService.SalvarTriagemAsync(dto)`.
-  * `GET /api/v1/triagem/exame/{exameId}`: chama `_triagemService.ObterPorExameIdAsync(exameId)`.
-  * `POST /api/v1/triagem/calcular-dose`: recebe `CalcularDoseRequestDto` e chama `_doseService.CalcularDose(dto)`.
-  * `POST /api/v1/triagem/{id}/liberar`: recebe `{ usuarioId, observacao }` e chama `_triagemService.LiberarExameAsync(id, usuarioId, observacao)`.
-  * `POST /api/v1/triagem/{id}/cancelar`: recebe `{ usuarioId, motivo }` e chama `_triagemService.CancelarExameAsync(id, usuarioId, motivo)`.
-
-#### 4. `AuditoriaController.cs` (`/api/v1/auditoria`)
-* Injetar: `IAuditoriaAppService`
-* Endpoints:
-  * `GET /api/v1/auditoria?limite=50`: chama `_auditoriaService.ObterUltimosLogsAsync(limite)`.
-
----
-
-### Passo C: Criar o Middleware de Tratamento Global de Erros
-Crie em `TriagemImagem.Api/Middlewares/ExceptionHandlingMiddleware.cs`:
-* Captura `DomainException`: retorna **HTTP 400 Bad Request** com `{ "success": false, "message": ex.Message }`;
-* Captura `Exception` genérica: loga o erro e retorna **HTTP 500 Internal Server Error** com `{ "success": false, "message": "Ocorreu um erro interno no servidor." }`.
-
----
-
-## 4. 🚀 Como Rodar o Projeto
+## 4. ⚙️ Configuração do Ambiente
 
 ### Pré-requisitos:
-* [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) instalado;
-* MySQL ou MariaDB rodando (porta 3306, usuário `root`, sem senha, ou configure sua senha no `appsettings.json`).
+* [.NET 8 SDK (versão 8.0.400 ou superior)](https://dotnet.microsoft.com/download/dotnet/8.0);
+* Qualquer navegador web moderno (Google Chrome, Microsoft Edge, Firefox, Brave).
 
-### Executando o Backend (API):
-1. No terminal, na raiz do projeto:
-   ```bash
-   dotnet run --project TriagemImagem.Api
-   ```
-2. O Entity Framework criará automaticamente as tabelas e fará o seed inicial de dados se o banco estiver vazio.
-3. Acesse a documentação interativa Swagger:
-   * **URL:** `http://localhost:5000/swagger` ou `https://localhost:5001/swagger`
+### Mecanismo de Auto-Detecção e Resiliência (Zero Config):
+O sistema possui inteligência de inicialização no [Program.cs](file:///c:/Projetos/ProjetoFaculdade/TriagemImagem.Api/Program.cs):
+* Ao iniciar, a API executa um teste de socket TCP na porta `3306` do `localhost`:
+  * **Se o MySQL estiver ativo**: Conecta automaticamente nos bancos `triagem_imagem_db` e `worklist_lab_db`.
+  * **Se o MySQL estiver ausente ou offline**: A API faz fallback imediato e transparente para o **SQLite Portátil** gerando localmente os bancos `triagem_imagem.db` e `worklist_lab.db`, executando a carga de dados (seed) sem que o avaliador precise instalar ou configurar servidores externos.
 
-### Executando os Testes Automatizados:
-```bash
+---
+
+## 5. 🗄️ Arquitetura Multi-Banco de Dados
+
+Para reproduzir a interoperabilidade real entre o sistema hospitalar (HIS/RIS) e o posto clínico de triagem, a aplicação opera com **dois bancos de dados desacoplados**:
+
+```mermaid
+graph LR
+    subgraph BANCO_2 ["Banco de Dados 2: Worklist Laboratorial (HIS/RIS)"]
+        W1[worklist_pacientes]
+        W2[worklist_pedidos_exames]
+    end
+
+    subgraph API [API .NET 8 - Estação de Triagem]
+        C1[WorklistController]
+        C2[TriagemController]
+        C3[RelatorioService]
+    end
+
+    subgraph BANCO_1 ["Banco de Dados 1: Aplicação de Triagem"]
+        B1[usuarios]
+        B2[pacientes]
+        B3[exames]
+        B4[formularios_triagem]
+        B5[itens_resposta_triagem]
+        B6[auditoria_logs]
+    end
+
+    subgraph DISCO ["Diretório Documentos"]
+        D1[Ficha_Triagem_Atendimento.html]
+    end
+
+    W2 -->|1. Consulta Agendamento & Tipo de Form| C1
+    C1 -->|2. Carrega Exame na Tela| API
+    C2 -->|3. Persiste Respostas & Semáforo| B4
+    C2 -->|4. Registra Auditoria| B6
+    C3 -->|5. Gera Ficha Timbrada| D1
+    D1 -.->|6. Grava Caminho Físico| B4
+```
+
+### Tabelas do Banco de Dados 1 (`triagem_imagem.db` / `triagem_imagem_db`):
+* `usuarios`: Operadores cadastrados (nome, login, senha com hash, perfil, status).
+* `pacientes`: Cadastro demográfico (CPF, nome, nascimento, sexo, peso, altura).
+* `exames`: Fila operacional do posto de atendimento, sala, horário, procedimento e status de liberação.
+* `formularios_triagem`: Cabeçalho da sessão de triagem, status do semáforo, volume de contraste, lote e a coluna **`caminho_arquivo_armazenado`**.
+* `itens_resposta_triagem`: Respostas detalhadas de cada questão com indicação de criticidade impeditiva.
+* `auditoria_logs`: Histórico inviolável de rastreabilidade (quem realizou cada ação, quando e qual foi o resultado).
+
+### Tabelas do Banco de Dados 2 (`worklist_lab.db` / `worklist_lab_db`):
+* `worklist_pacientes`: Cadastro de pacientes do convênio/laboratório.
+* `worklist_pedidos_exames`: Pedidos médicos agendados contendo `tipo_formulario` (`RM_COLUNA`, `RM_BRACO_ANTEBRACO`, `RM_BACIA_QUADRIL`, `TC_TORAX`, `TC_ABDOMEN`), `segmento_lado`, médico solicitante, CRM e convênio.
+
+---
+
+## 6. 🔐 Autenticação e Perfis de Acesso
+
+A autenticação é efetuada via `POST /api/v1/auth/login`. Para avaliação da banca examinadora, os seguintes usuários já estão pré-configurados no banco de dados:
+
+| Perfil de Acesso | Login | Senha | Permissões no Sistema |
+| :--- | :--- | :--- | :--- |
+| **Biomédico(a)** | `lucas.biomed` | `123456` | Acesso total: Realizar triagem, calcular dose de contraste, liberar exames e registrar bloqueios de segurança. |
+| **Técnico(a) em Radiologia** | `mariana.tec` | `123456` | Operação diária: Chamar pacientes da fila, preencher checklists clínicos e salvar rascunhos. |
+| **Administrador** | `admin` | `123456` | Gestão clínica: Visualizar relatórios e consultar trilha inviolável de auditoria. |
+
+---
+
+## 7. 📡 Endpoints da API RESTful
+
+A documentação interativa Swagger pode ser acessada em: **`http://localhost:5000/swagger`**
+
+| Módulo | Método | Rota | Descrição |
+| :--- | :---: | :--- | :--- |
+| **Autenticação** | `POST` | `/api/v1/auth/login` | Autentica o operador e retorna dados de perfil |
+| **Worklist** | `GET` | `/api/v1/worklist` | Lista agendamentos do dia com filtros e busca |
+| **Worklist** | `GET` | `/api/v1/worklist/{id}` | Obtém detalhes completos de um exame |
+| **Worklist** | `POST` | `/api/v1/worklist/{id}/chamar` | Registra a chamada do paciente para a sala |
+| **Banco 2 (Lab)** | `GET` | `/api/v1/worklist/laboratorio` | Consulta direta aos pedidos do Banco 2 do laboratório |
+| **Triagem** | `POST` | `/api/v1/triagem` | Salva a triagem, avalia semáforo e gera relatório em `Documentos` |
+| **Triagem** | `GET` | `/api/v1/triagem/exame/{exameId}` | Consulta o formulário de triagem de um exame |
+| **Triagem** | `POST` | `/api/v1/triagem/calcular-dose` | Calcula dosagem clínica de contraste (TC/RM) |
+| **Triagem** | `POST` | `/api/v1/triagem/{id}/liberar` | Libera o exame para execução no tomógrafo/ressonância |
+| **Triagem** | `POST` | `/api/v1/triagem/{id}/cancelar` | Bloqueia/Cancela o exame por contraindicação clínica |
+| **Auditoria** | `GET` | `/api/v1/auditoria?limite=50` | Retorna o log de rastreabilidade e auditoria |
+| **Diagnóstico** | `GET` | `/api/v1/database/status` | Exibe a integridade e métricas dos Bancos 1 e 2 |
+
+---
+
+## 8. 🚀 Instruções para Execução do Projeto
+
+### Passo 1: Executar a API (.NET 8)
+Abra o terminal na pasta raiz do projeto (`c:\Projetos\ProjetoFaculdade`) e execute:
+
+```powershell
+dotnet run --project TriagemImagem.Api --urls "http://localhost:5000"
+```
+
+A API iniciará, conectará aos bancos de dados (ou criará os arquivos SQLite caso o MySQL não esteja rodando) e exibirá:
+```text
+info: Program[0] Banco de Dados 1 (Triagem) pronto para uso (SQLite Portátil).
+info: Program[0] Banco de Dados 2 (Worklist Lab) pronto para uso (SQLite Portátil).
+info: Microsoft.Hosting.Lifetime[14] Now listening on: http://localhost:5000
+```
+
+### Passo 2: Executar a Bateria de Testes Automatizados
+Em outra janela de terminal, execute:
+
+```powershell
 dotnet test
 ```
 
-### Executando o Frontend:
-1. Abra o arquivo `frontend/index.html` diretamente no navegador (ou utilize a extensão *Live Server* do VS Code).
-2. O frontend já conta com logins rápidos para teste:
-   * **Biomédico:** `lucas.biomed` (senha: `123456`)
-   * **Técnico:** `mariana.tec` (senha: `123456`)
-   * **Admin:** `admin` (senha: `admin123`)
-3. A interface conta com atalhos ergonômicos de teclado na triagem:
-   * **[1]**: Seleciona resposta **NÃO** e avança para a próxima pergunta;
-   * **[2]**: Seleciona resposta **SIM** e avança para a próxima pergunta;
-   * **[Tab]**: Navega entre as perguntas do checklist.
+*Resultado esperado:* **Aprovado! 38 testes executados com 100% de sucesso.**
+
+### Passo 3: Abrir a Interface Web (Frontend)
+Basta abrir o arquivo **`frontend/index.html`** em qualquer navegador (dando duplo clique no arquivo ou via extensão *Live Server* do VS Code).
+
+O badge no canto superior direito indicará:
+`🟢 API .NET Online (Bancos 1 & 2 Conectados)`.
+
+---
+
+## 9. 📖 Guia de Utilização da Aplicação
+
+### 1. Login e Acesso
+* Clique em qualquer um dos botões de preenchimento rápido (ex: **Biomédico**) e confirme em **Entrar no Sistema**.
+
+### 2. Navegação na Worklist do Dia
+* A tela inicial exibe a lista de pacientes agendados.
+* Utilize a busca em tempo real por **Nome do Paciente**, **CPF**, **Número de Atendimento** ou **Sala**.
+* Clique nos filtros rápidos (**Tomografia**, **Ressonância**, **Aguardando**, **Liberados**).
+* Para inspecionar a integração com o banco hospitalar externo, clique no botão **"Banco 2 (HIS-RIS Lab)"**: um modal exibirá os dados brutos vindos do sistema de agendamento com os tipos de formulário especializados.
+
+### 3. Abertura da Triagem e Reconhecimento Automático de Formulário
+* Clique em **Iniciar Triagem** em qualquer agendamento:
+  * Exame **#104520 (Fernanda Lima Rocha)**: Carrega automaticamente o **Questionário de RM de Coluna** (Lombar).
+  * Exame **#104521 (Carlos Eduardo Mendes)**: Carrega automaticamente o **Questionário de RM de Braço/Antebraço** (Direito).
+  * Exame **#104522 (Maria Aparecida Souza)**: Carrega automaticamente o **Questionário de RM de Bacia/Quadril** (Esquerdo).
+  * Exame **#104523 (João Carlos de Oliveira)**: Carrega o **Checklist de Tomografia de Tórax com Contraste**.
+
+### 4. Ergonomia Operacional e Atalhos Rápidos
+Para maximizar a produtividade do operador no posto clínico:
+* **Tecla `[1]`**: Marca a resposta **NÃO** para a pergunta selecionada e salta para a próxima.
+* **Tecla `[2]`**: Marca a resposta **SIM** para a pergunta selecionada e salta para a próxima.
+* **Tecla `[Tab]`**: Avança entre as perguntas do questionário.
+
+### 5. Semáforo Clínico em Tempo Real
+* Respostas a itens impeditivos (ex: *Marcapasso cardíaco*, *Clipes de aneurisma ferromagnéticos* ou *Choque alérgico prévio a iodo*) acionam imediatamente o **Semáforo Vermelho de Bloqueio Absoluto**.
+* Nesses casos, o botão de liberação é bloqueado, garantindo conformidade com a segurança do paciente.
+
+### 6. Finalização e Arquivamento em Documentos
+* Ao clicar em **"Liberar Exame com Segurança"**:
+  1. A triagem é persistida no Banco de Dados 1;
+  2. O status do exame é atualizado para `LIBERADO`;
+  3. A ficha clínica timbrada oficial é compilada e gravada em:
+     `C:\Users\<usuario>\Documents\TriagensDiagnosticoImagem\`
+  4. Um modal de confirmação exibe o caminho exato gravado em disco com a opção de **Imprimir Laudo**.
