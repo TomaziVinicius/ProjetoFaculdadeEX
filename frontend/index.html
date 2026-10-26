@@ -229,6 +229,7 @@
               <button type="button" class="filter-chip" data-filter="RM">Ressonância (RM)</button>
               <button type="button" class="filter-chip" data-filter="AGUARDANDO_TRIAGEM">Aguardando</button>
               <button type="button" class="filter-chip" data-filter="LIBERADO">Liberados</button>
+              <button type="button" class="filter-chip" data-filter="BLOQUEADO_SEGURANCA">Não Permitidos</button>
               <button type="button" class="btn btn--secondary" style="font-size: 0.8rem; padding: 6px 12px; margin-left: 8px; border-color: rgba(56, 189, 248, 0.4); color: var(--cyan-400);" onclick="abrirModalWorklistLab()">
                 <i class="fa-solid fa-database"></i> Banco 2 (HIS-RIS Lab)
               </button>
@@ -377,9 +378,12 @@
               <i class="fa-solid fa-arrow-left"></i> Voltar à Fila
             </button>
 
-            <div style="display: flex; gap: 12px;">
+            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
               <button type="button" class="btn btn--secondary" id="btnSalvarRascunho">
                 <i class="fa-solid fa-floppy-disk"></i> Salvar Rascunho
+              </button>
+              <button type="button" class="btn-bloquear-final" id="btnBloquearExame" style="display: none;">
+                <i class="fa-solid fa-ban"></i> Encerrar Ficha &amp; Bloquear Exame
               </button>
               <button type="button" class="btn-liberar-final" id="btnLiberarExame">
                 <i class="fa-solid fa-shield-check"></i> Liberar Exame com Segurança

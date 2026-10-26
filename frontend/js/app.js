@@ -427,6 +427,7 @@ function renderizarWorklist() {
     if (UIState.filtroModalidade === 'RM' && item.modalidade !== 'RM') return false;
     if (UIState.filtroModalidade === 'AGUARDANDO_TRIAGEM' && item.status !== 'AGUARDANDO_TRIAGEM') return false;
     if (UIState.filtroModalidade === 'LIBERADO' && item.status !== 'LIBERADO') return false;
+    if (UIState.filtroModalidade === 'BLOQUEADO_SEGURANCA' && item.status !== 'BLOQUEADO_SEGURANCA') return false;
 
     if (UIState.buscaTexto) {
       const busca = UIState.buscaTexto;
@@ -457,7 +458,7 @@ function renderizarWorklist() {
     const statusBadge = isLiberado
       ? '<span class="badge-status status-liberado"><i class="fa-solid fa-check-circle"></i> Liberado</span>'
       : (isBloqueado
-        ? '<span class="badge-status status-bloqueado"><i class="fa-solid fa-ban"></i> Bloqueio</span>'
+        ? '<span class="badge-status status-bloqueado"><i class="fa-solid fa-ban"></i> Não Permitido (Bloqueado)</span>'
         : '<span class="badge-status status-aguardando"><i class="fa-solid fa-clock"></i> Aguardando</span>');
 
     const modBadgeClass = item.modalidade === 'TC' ? 'badge-tc' : 'badge-rm';
@@ -478,7 +479,8 @@ function renderizarWorklist() {
         <td>${statusBadge}</td>
         <td style="text-align: right;">
           <button type="button" class="btn-action btn-iniciar-triagem" onclick="abrirTriagem(${item.id})">
-            <i class="fa-solid fa-clipboard-check"></i> ${isLiberado ? 'Ver Ficha' : 'Iniciar Triagem'}
+            <i class="fa-solid ${isLiberado ? 'fa-file-lines' : (isBloqueado ? 'fa-ban' : 'fa-clipboard-check')}"></i> 
+            ${isLiberado ? 'Ver Ficha' : (isBloqueado ? 'Ver Bloqueio' : 'Iniciar Triagem')}
           </button>
         </td>
       </tr>
@@ -495,6 +497,13 @@ function renderizarWorklist() {
   document.getElementById('statLiberados').textContent = liberados;
   document.getElementById('statBloqueados').textContent = bloqueados;
   document.getElementById('badgeWorklistCount').textContent = aguardando;
+}
+
+function obterPerguntasExameAtual() {
+  if (!UIState.exameSelecionado) return [];
+  const item = UIState.exameSelecionado;
+  const tipoForm = item.tipoFormulario || (item.modalidade === 'TC' ? 'TC_TORAX' : 'RM_COLUNA');
+  return PROTOCOLOS_CHECKLIST[tipoForm] || PROTOCOLOS_CHECKLIST[item.modalidade] || PROTOCOLOS_CHECKLIST.TC || [];
 }
 
 /* ==============================================================================
@@ -535,7 +544,7 @@ async function abrirTriagem(exameId) {
     TC_ABDOMEN: 'Checklist de Segurança: Tomografia Computadorizada de Abdômen Total'
   };
 
-  const perguntas = PROTOCOLOS_CHECKLIST[tipoForm] || PROTOCOLOS_CHECKLIST[item.modalidade] || PROTOCOLOS_CHECKLIST.TC;
+  const perguntas = obterPerguntasExameAtual();
   document.getElementById('checklistProtocoloTitulo').textContent = 
     titulosEspecializados[tipoForm] || `Checklist de Segurança - ${item.modalidade}`;
 
@@ -563,14 +572,31 @@ async function abrirTriagem(exameId) {
     `;
   }).join('');
 
-  // Resposta padrão: NÃO
+  // Resposta padrão inicial: NÃO para todas
   perguntas.forEach(p => definirResposta(p.codigo, 'NAO', false));
-  avaliarSemaforo();
 
-  // Se a API estiver online, registra a chamada do paciente
+  const obsElem = document.getElementById('txtObservacoesClinicas');
+  if (obsElem) obsElem.value = item.observacoesClinicas || '';
+
+  // Se a API estiver online, registra a chamada do paciente e carrega triagem prévia se houver
   if (UIState.online) {
     ApiClient.chamarPaciente(item.id, UIState.usuarioLogado.id).catch(() => {});
+    try {
+      const triagemExistente = await ApiClient.obterTriagemPorExameId(item.id);
+      if (triagemExistente && Array.isArray(triagemExistente.respostas) && triagemExistente.respostas.length > 0) {
+        triagemExistente.respostas.forEach(r => {
+          definirResposta(r.codigoPergunta, r.respostaValor, false);
+        });
+        if (triagemExistente.observacoesClinicas && obsElem) {
+          obsElem.value = triagemExistente.observacoesClinicas;
+        }
+      }
+    } catch {
+      // Sem triagem prévia persistida, mantém respostas padrão
+    }
   }
+
+  avaliarSemaforo();
 
   document.getElementById('navTriagem').removeAttribute('disabled');
   trocarView('view-triagem');
@@ -589,8 +615,8 @@ function definirResposta(codigo, valor, dispararAvaliacao = true) {
   btnSim.classList.remove('active-sim-danger', 'active-sim-warning');
   card.classList.remove('is-danger', 'is-warning');
 
-  const modalidade = UIState.exameSelecionado?.modalidade || 'TC';
-  const pergunta = (PROTOCOLOS_CHECKLIST[modalidade] || []).find(p => p.codigo === codigo);
+  const perguntas = obterPerguntasExameAtual();
+  const pergunta = perguntas.find(p => p.codigo === codigo);
   const isImpeditivo = pergunta ? pergunta.impeditivo : false;
 
   if (valor === 'NAO') {
@@ -615,46 +641,116 @@ function avaliarSemaforo() {
   const descricao = document.getElementById('semaforoDescricao');
   const badge = document.getElementById('semaforoBadgeState');
   const btnLiberar = document.getElementById('btnLiberarExame');
+  const btnBloquear = document.getElementById('btnBloquearExame');
 
-  const modalidade = UIState.exameSelecionado?.modalidade || 'TC';
-  const perguntas = PROTOCOLOS_CHECKLIST[modalidade] || [];
+  const item = UIState.exameSelecionado;
+  const perguntas = obterPerguntasExameAtual();
 
-  let temBloqueio = false;
-  let temAtencao = false;
+  const impeditivosAtivos = [];
+  const atencoesAtivas = [];
 
-  perguntas.forEach(p => {
+  perguntas.forEach((p, index) => {
     if (UIState.respostas[p.codigo] === 'SIM') {
-      if (p.impeditivo) temBloqueio = true;
-      else temAtencao = true;
+      if (p.impeditivo) {
+        impeditivosAtivos.push({ codigo: p.codigo, index: index + 1, enunciado: p.enunciado });
+      } else {
+        atencoesAtivas.push({ codigo: p.codigo, index: index + 1, enunciado: p.enunciado });
+      }
     }
   });
 
   banner.classList.remove('semaforo-verde', 'semaforo-amarelo', 'semaforo-vermelho');
 
-  if (temBloqueio) {
+  const isJaBloqueado = item && item.status === 'BLOQUEADO_SEGURANCA';
+
+  if (impeditivosAtivos.length > 0 || isJaBloqueado) {
     banner.classList.add('semaforo-vermelho');
     orb.innerHTML = '<i class="fa-solid fa-ban"></i>';
     titulo.textContent = 'SEMÁFORO CLÍNICO: BLOQUEIO DE SEGURANÇA MANDATÓRIO';
-    descricao.textContent = 'Contraindicação impeditiva ativa no Checklist. Liberação impedida por protocolo de aviação.';
+
+    let motivosHtml = '';
+    if (impeditivosAtivos.length > 0) {
+      motivosHtml = `
+        <div style="margin-top: 6px;">
+          <div style="font-weight: 700; color: #fca5a5; margin-bottom: 4px;">
+            <i class="fa-solid fa-triangle-exclamation"></i> ${impeditivosAtivos.length} Impedimento(s) Ativo(s) Detectado(s):
+          </div>
+          <ul style="margin: 0; padding-left: 18px; font-size: 0.85rem; color: #fecaca; line-height: 1.4;">
+            ${impeditivosAtivos.map(m => `<li><strong>[Q${m.index}]</strong> ${m.enunciado}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    } else {
+      motivosHtml = `<div style="font-size: 0.85rem; color: #fca5a5; margin-top: 4px;">Exame com bloqueio de segurança registrado por contraindicação médica.</div>`;
+    }
+
+    descricao.innerHTML = `
+      ${motivosHtml}
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">
+        <i class="fa-solid fa-shield-halved"></i> Diretriz CBR/ACR: A liberação operacional está proibida. Confirme os dados e encerre a ficha como Não Permitido.
+      </div>
+    `;
+
     badge.textContent = 'BLOQUEIO VERMELHO';
-    btnLiberar.setAttribute('disabled', 'true');
-    btnLiberar.innerHTML = '<i class="fa-solid fa-lock"></i> Liberação Bloqueada (Risco)';
-  } else if (temAtencao) {
+
+    if (btnLiberar) {
+      btnLiberar.style.display = 'none';
+      btnLiberar.disabled = true;
+    }
+
+    if (btnBloquear) {
+      btnBloquear.style.display = 'inline-flex';
+      btnBloquear.disabled = false;
+      btnBloquear.innerHTML = isJaBloqueado
+        ? '<i class="fa-solid fa-ban"></i> Exame Bloqueado (Ver Detalhes)'
+        : '<i class="fa-solid fa-ban"></i> Encerrar Ficha &amp; Bloquear Exame';
+    }
+  } else if (atencoesAtivas.length > 0) {
     banner.classList.add('semaforo-amarelo');
     orb.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
     titulo.textContent = 'SEMÁFORO CLÍNICO: ATENÇÃO CLÍNICA REQUERIDA';
-    descricao.textContent = 'Alertas moderados identificados. Avaliar protocolo de hidratação ou precauções.';
+
+    const motivosHtml = `
+      <div style="margin-top: 6px;">
+        <div style="font-weight: 700; color: #fde047; margin-bottom: 4px;">
+          <i class="fa-solid fa-circle-exclamation"></i> ${atencoesAtivas.length} Alerta(s) Moderado(s):
+        </div>
+        <ul style="margin: 0; padding-left: 18px; font-size: 0.85rem; color: #fef08a; line-height: 1.4;">
+          ${atencoesAtivas.map(m => `<li><strong>[Q${m.index}]</strong> ${m.enunciado}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+
+    descricao.innerHTML = `
+      ${motivosHtml}
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">
+        Avaliar protocolo de hidratação, jejum ou precauções operacionais antes da injeção/exame.
+      </div>
+    `;
+
     badge.textContent = 'ALERTA AMARELO';
-    btnLiberar.removeAttribute('disabled');
-    btnLiberar.innerHTML = '<i class="fa-solid fa-shield-check"></i> Liberar Exame com Segurança';
+
+    if (btnLiberar) {
+      btnLiberar.style.display = 'inline-flex';
+      btnLiberar.disabled = false;
+      btnLiberar.innerHTML = '<i class="fa-solid fa-shield-check"></i> Liberar Exame com Alerta';
+    }
+
+    if (btnBloquear) btnBloquear.style.display = 'none';
   } else {
     banner.classList.add('semaforo-verde');
     orb.innerHTML = '<i class="fa-solid fa-check"></i>';
     titulo.textContent = 'SEMÁFORO CLÍNICO: NENHUM IMPEDIMENTO DETECTADO';
     descricao.textContent = 'Todos os critérios de segurança validados. O exame está apto para liberação operacional.';
     badge.textContent = 'LIBERADO VERDE';
-    btnLiberar.removeAttribute('disabled');
-    btnLiberar.innerHTML = '<i class="fa-solid fa-shield-check"></i> Liberar Exame com Segurança';
+
+    if (btnLiberar) {
+      btnLiberar.style.display = 'inline-flex';
+      btnLiberar.disabled = false;
+      btnLiberar.innerHTML = '<i class="fa-solid fa-shield-check"></i> Liberar Exame com Segurança';
+    }
+
+    if (btnBloquear) btnBloquear.style.display = 'none';
   }
 }
 
@@ -680,8 +776,22 @@ function initCalculadora() {
     }
   });
 
+  // Botão de Bloqueio/Recusa por contraindicação clínica
+  document.getElementById('btnBloquearExame')?.addEventListener('click', () => {
+    abrirModalConfirmacaoBloqueio();
+  });
+
   document.getElementById('btnLiberarExame')?.addEventListener('click', async () => {
     if (!UIState.exameSelecionado) return;
+
+    // Se houver qualquer resposta impeditiva com SIM, redireciona para confirmação de bloqueio
+    const perguntas = obterPerguntasExameAtual();
+    const temBloqueio = perguntas.some(p => UIState.respostas[p.codigo] === 'SIM' && p.impeditivo);
+    if (temBloqueio) {
+      abrirModalConfirmacaoBloqueio();
+      return;
+    }
+
     const btn = document.getElementById('btnLiberarExame');
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando...';
@@ -710,8 +820,7 @@ function initCalculadora() {
 async function persistirTriagem(liberar = false) {
   if (!UIState.exameSelecionado) return null;
 
-  const tipoForm = UIState.exameSelecionado.tipoFormulario || (UIState.exameSelecionado.modalidade === 'TC' ? 'TC_TORAX' : 'RM_COLUNA');
-  const perguntas = PROTOCOLOS_CHECKLIST[tipoForm] || PROTOCOLOS_CHECKLIST[UIState.exameSelecionado.modalidade] || [];
+  const perguntas = obterPerguntasExameAtual();
 
   const respostasDto = perguntas.map(p => ({
     codigoPergunta: p.codigo,
@@ -742,6 +851,213 @@ async function persistirTriagem(liberar = false) {
     return res;
   }
   return null;
+}
+
+function abrirModalConfirmacaoBloqueio() {
+  const item = UIState.exameSelecionado;
+  if (!item) return;
+
+  document.getElementById('modalBloqueioConfirmacao')?.remove();
+
+  const perguntas = obterPerguntasExameAtual();
+  const impeditivos = [];
+  perguntas.forEach((p, idx) => {
+    if (UIState.respostas[p.codigo] === 'SIM' && p.impeditivo) {
+      impeditivos.push({ codigo: p.codigo, index: idx + 1, enunciado: p.enunciado });
+    }
+  });
+
+  const isTc = item.modalidade === 'TC';
+  const explicacaoRisco = isTc
+    ? 'Risco iminente de reação anafilactoide / choque alérgico grave ao contraste iodado ou sobrecarga renal aguda irreversível (Nefropatia por Contraste).'
+    : 'Risco iminente de deslocamento/atração mecânica por torque ferromagnético, superaquecimento por radiofrequência ou perda total do ritmo cardíaco em campo de 1.5T / 3.0T.';
+
+  const container = document.createElement('div');
+  container.id = 'modalBloqueioConfirmacao';
+  container.style.position = 'fixed';
+  container.style.inset = '0';
+  container.style.background = 'rgba(15, 23, 42, 0.85)';
+  container.style.backdropFilter = 'blur(8px)';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  container.style.justifyContent = 'center';
+  container.style.zIndex = '10000';
+  container.style.padding = '20px';
+
+  const motivosListHtml = impeditivos.length > 0
+    ? impeditivos.map(i => `
+        <div style="background: rgba(239, 68, 68, 0.15); border-left: 4px solid var(--coral-500); padding: 10px 14px; border-radius: 4px; margin-bottom: 8px;">
+          <div style="font-weight: 700; color: #f87171; font-size: 0.9rem;">
+            <i class="fa-solid fa-triangle-exclamation"></i> [Q${i.index}] ${i.enunciado}
+          </div>
+          <div style="font-size: 0.78rem; color: #cbd5e1; margin-top: 4px;">
+            Classificação: <strong>Contraindicação Absoluta de Segurança Radiológica</strong>
+          </div>
+        </div>
+      `).join('')
+    : `
+        <div style="background: rgba(239, 68, 68, 0.15); border-left: 4px solid var(--coral-500); padding: 10px 14px; border-radius: 4px; margin-bottom: 8px; font-size: 0.85rem; color: #fca5a5;">
+          Bloqueio clínico acionado pelo operador com base em contraindicação presencial.
+        </div>
+      `;
+
+  const textoCondutaPadrao = impeditivos.length > 0
+    ? `Exame NÃO REALIZADO devido a contraindicação absoluta identificada na triagem (${impeditivos.map(i => `Q${i.index}`).join(', ')}). Risco à integridade física do paciente. Paciente orientado a retornar com médico assistente para conduta médica alternativa.`
+    : `Exame NÃO REALIZADO por contraindicação ou recusa clínica na triagem pré-exame. Orientado a contatar médico solicitante.`;
+
+  container.innerHTML = `
+    <div style="background: #0f172a; border: 1px solid rgba(239, 68, 68, 0.5); border-radius: 14px; max-width: 680px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 26px 30px; box-shadow: 0 25px 60px -15px rgba(239, 68, 68, 0.35); color: #f8fafc; font-family: var(--font-body, sans-serif);">
+      
+      <!-- Cabeçalho de Alerta -->
+      <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; border-bottom: 1px solid rgba(239, 68, 68, 0.25); padding-bottom: 16px;">
+        <div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(239, 68, 68, 0.2); border: 2px solid var(--coral-500); color: #f87171; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; flex-shrink: 0;">
+          <i class="fa-solid fa-ban"></i>
+        </div>
+        <div>
+          <h3 style="font-family: var(--font-title); font-size: 1.3rem; font-weight: 800; color: #fff; margin: 0;">
+            Bloqueio de Segurança Clínica Mandatório
+          </h3>
+          <p style="font-size: 0.85rem; color: #fca5a5; margin-top: 4px;">
+            Este exame NÃO PODE ser liberado por apresentar critérios de contraindicação absoluta (Protocolo de Aviação).
+          </p>
+        </div>
+      </div>
+
+      <!-- Seção 1: Por que está sendo recusado -->
+      <div style="margin-bottom: 18px;">
+        <div style="font-size: 0.8rem; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+          1. Motivo(s) da Recusa e Impedimento Clínico
+        </div>
+        ${motivosListHtml}
+        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 10px 14px; font-size: 0.82rem; color: #94a3b8;">
+          <strong style="color: #38bdf8;">Justificativa Médica Radiológica:</strong> ${explicacaoRisco}
+        </div>
+      </div>
+
+      <!-- Seção 2: Conferência dos Dados do Paciente e Exame -->
+      <div style="margin-bottom: 18px;">
+        <div style="font-size: 0.8rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+          2. Conferência Obrigatória dos Dados do Exame
+        </div>
+        <div style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 14px 16px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; font-size: 0.85rem;">
+            <div>
+              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Paciente:</span>
+              <strong style="color: #fff;">${item.pacienteNome}</strong>
+            </div>
+            <div>
+              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Atendimento / CPF:</span>
+              <span style="color: #38bdf8; font-family: var(--font-mono); font-weight: 700;">#${item.atendimento}</span> | ${item.documentoCpf}
+            </div>
+            <div>
+              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Idade / Sexo:</span>
+              <span>${item.idade} anos | ${item.sexo === 'M' ? 'Masculino' : 'Feminino'}</span>
+            </div>
+            <div>
+              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Procedimento Agendado:</span>
+              <strong style="color: #fff;">${item.procedimento}</strong>
+            </div>
+            <div>
+              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Modalidade / Sala:</span>
+              <span class="badge-modalidade ${item.modalidade === 'TC' ? 'badge-tc' : 'badge-rm'}" style="margin-right: 6px;">${item.modalidade}</span> Sala ${item.sala}
+            </div>
+            <div>
+              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Médico Solicitante / Convênio:</span>
+              <span>${item.medicoSolicitante || 'Dr. Roberto Albuquerque'} (${item.convenio || 'Unimed'})</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Seção 3: Conduta / Justificativa do Operador -->
+      <div style="margin-bottom: 18px;">
+        <label for="txtCondutaBloqueio" style="display: block; font-size: 0.8rem; font-weight: 700; color: #e2e8f0; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+          3. Conduta Operacional Registrada no Laudo
+        </label>
+        <textarea id="txtCondutaBloqueio" class="form-input" rows="2" style="width: 100%; font-size: 0.85rem; border-color: rgba(239, 68, 68, 0.4);">${textoCondutaPadrao}</textarea>
+      </div>
+
+      <!-- Checkbox de Confirmação -->
+      <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px 14px; margin-bottom: 22px; display: flex; align-items: flex-start; gap: 10px;">
+        <input type="checkbox" id="chkConfirmaDadosBloqueio" style="width: 18px; height: 18px; margin-top: 2px; cursor: pointer; accent-color: var(--coral-500);">
+        <label for="chkConfirmaDadosBloqueio" style="font-size: 0.85rem; color: #f8fafc; cursor: pointer; line-height: 1.4;">
+          <strong>Confirmo que os dados do paciente foram conferidos verbalmente</strong> e que as contraindicações impeditivas foram ratificadas junto ao paciente/acompanhante.
+        </label>
+      </div>
+
+      <!-- Ações do Modal -->
+      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 12px; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 16px;">
+        <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalBloqueioConfirmacao').remove()">
+          <i class="fa-solid fa-arrow-left"></i> Voltar e Revisar
+        </button>
+        <button type="button" class="btn-bloquear-final" id="btnConfirmarBloqueioModal" disabled style="opacity: 0.5; cursor: not-allowed;">
+          <i class="fa-solid fa-ban"></i> Confirmar Bloqueio &amp; Encerrar Ficha
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(container);
+
+  const chk = document.getElementById('chkConfirmaDadosBloqueio');
+  const btnConfirmar = document.getElementById('btnConfirmarBloqueioModal');
+
+  chk.addEventListener('change', () => {
+    if (chk.checked) {
+      btnConfirmar.removeAttribute('disabled');
+      btnConfirmar.style.opacity = '1';
+      btnConfirmar.style.cursor = 'pointer';
+    } else {
+      btnConfirmar.setAttribute('disabled', 'true');
+      btnConfirmar.style.opacity = '0.5';
+      btnConfirmar.style.cursor = 'not-allowed';
+    }
+  });
+
+  btnConfirmar.addEventListener('click', async () => {
+    if (!chk.checked) return;
+
+    btnConfirmar.disabled = true;
+    btnConfirmar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Encerrando Ficha...';
+
+    const conduta = document.getElementById('txtCondutaBloqueio')?.value.trim() || textoCondutaPadrao;
+    const obsElem = document.getElementById('txtObservacoesClinicas');
+    if (obsElem) obsElem.value = conduta;
+
+    try {
+      // 1. Salva a triagem na API (gera o arquivo físico e grava o semáforo vermelho)
+      const res = await persistirTriagem(false);
+
+      // 2. Chama a API de cancelamento para registrar o status BLOQUEADO_SEGURANCA
+      if (UIState.online) {
+        await ApiClient.cancelarExame(item.id, UIState.usuarioLogado.id || 1, conduta);
+      }
+
+      // 3. Atualiza estado local
+      item.status = 'BLOQUEADO_SEGURANCA';
+      const itemFila = UIState.exames.find(e => e.id === item.id);
+      if (itemFila) itemFila.status = 'BLOQUEADO_SEGURANCA';
+
+      // 4. Remove o modal de confirmação
+      document.getElementById('modalBloqueioConfirmacao')?.remove();
+
+      showToast(`Exame #${item.atendimento} BLOQUEADO por segurança clínica. Ficha encerrada!`, 'success');
+
+      // 5. Recarrega a fila e volta para a Worklist
+      await carregarWorklist();
+      trocarView('view-worklist');
+
+      // 6. Exibe comprovante do laudo arquivado se disponível
+      const caminho = res?.caminhoArquivoArmazenado;
+      if (caminho) {
+        exibirModalArquivoSalvo(caminho);
+      }
+    } catch (err) {
+      showToast(`Erro ao bloquear exame: ${err.message}`, 'error');
+      btnConfirmar.disabled = false;
+      btnConfirmar.innerHTML = '<i class="fa-solid fa-ban"></i> Confirmar Bloqueio &amp; Encerrar Ficha';
+    }
+  });
 }
 
 function exibirModalArquivoSalvo(caminho) {
@@ -1033,4 +1349,34 @@ async function abrirModalWorklistLab() {
       div.innerHTML = `<p style="color: var(--coral-400); text-align: center;">Erro ao consultar Banco 2: ${err.message}</p>`;
     }
   }
+}
+
+/* ==============================================================================
+   11. ATALHOS DE TECLADO OPERACIONAIS ([1] = NÃO, [2] = SIM)
+   ============================================================================== */
+function initAtalhosTeclado() {
+  document.addEventListener('keydown', (e) => {
+    const activeView = document.querySelector('.view-panel:not(.hidden)');
+    if (activeView?.id !== 'view-triagem') return;
+
+    // Se estiver digitando em um input ou textarea, não intercepta
+    if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+
+    if (e.key === '1' || e.key === '2') {
+      const activeCard = document.activeElement?.closest('.checklist-card') 
+        || document.querySelector('.checklist-card:focus')
+        || document.querySelector('.checklist-card');
+
+      if (!activeCard) return;
+
+      const codigo = activeCard.getAttribute('data-codigo');
+      if (!codigo) return;
+
+      if (e.key === '1') {
+        definirResposta(codigo, 'NAO');
+      } else if (e.key === '2') {
+        definirResposta(codigo, 'SIM');
+      }
+    }
+  });
 }
