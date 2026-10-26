@@ -6,6 +6,7 @@ namespace TriagemImagem.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/database")]
+[Produces("application/json")]
 public class DatabaseHealthController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -16,9 +17,11 @@ public class DatabaseHealthController : ControllerBase
     }
 
     /// <summary>
-    /// Verifica a conectividade com o banco de dados MySQL e contagem de registros.
+    /// Verifica a conectividade com o banco de dados (MySQL ou SQLite portátil) e contagem de registros.
     /// </summary>
     [HttpGet("status")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> GetStatus()
     {
         try
@@ -26,10 +29,10 @@ public class DatabaseHealthController : ControllerBase
             var conectado = await _context.Database.CanConnectAsync();
             if (!conectado)
             {
-                return StatusCode(503, new
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
                 {
                     status = "Desconectado",
-                    mensagem = "Não foi possível conectar ao banco de dados MySQL. Verifique o servidor local ou porta 3306."
+                    mensagem = "Não foi possível conectar ao banco de dados."
                 });
             }
 
@@ -37,10 +40,14 @@ public class DatabaseHealthController : ControllerBase
             var totalPacientes = await _context.Pacientes.CountAsync();
             var totalExames = await _context.Exames.CountAsync();
 
+            var provedor = _context.Database.ProviderName?.Contains("Sqlite") == true
+                ? "SQLite (Modo Portátil Automático)"
+                : "MySQL / MariaDB";
+
             return Ok(new
             {
                 status = "Conectado",
-                banco = "MySQL / MariaDB",
+                banco = provedor,
                 metricas = new
                 {
                     usuarios = totalUsuarios,
@@ -52,7 +59,7 @@ public class DatabaseHealthController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new
+            return StatusCode(StatusCodes.Status500InternalServerError, new
             {
                 status = "Erro",
                 mensagem = ex.Message
