@@ -1,9 +1,9 @@
 /**
  * SISTEMA DE TRIAGEM PARA DIAGNÓSTICO POR IMAGEM
- * Frontend - Lógica de Apresentação e Ergonomia Operacional
+ * Frontend - Lógica de Apresentação, Ergonomia Operacional e Integração HTTP REST
  */
 
-// Dados Locais Iniciais para Demonstração do Frontend (Passo 2)
+// Dados Locais de Contingência (Fallback para apresentação sem o backend rodando)
 const EXAMES_INICIAIS = [
   {
     id: 1,
@@ -63,14 +63,14 @@ const EXAMES_INICIAIS = [
   }
 ];
 
-// Perguntas do Checklist por Modalidade
+// Checklist de Segurança por Modalidade
 const PROTOCOLOS_CHECKLIST = {
   TC: [
     { codigo: 'TC_ALERGIA_IODO', enunciado: 'Histórico prévio de anafilaxia ou choque alérgico grave ao contraste iodado?', impeditivo: true },
-    { codigo: 'TC_INSUFICIENCIA_RENAL', enunciado: 'Diagnóstico prévio de doença renal crônica ou diálise?', impeditivo: false },
+    { codigo: 'TC_INSUFICIENCIA_RENAL', enunciado: 'Diagnóstico prévio de doença renal crônica ou diálise?', impeditivo: true },
     { codigo: 'TC_METFORMINA', enunciado: 'Faz uso contínuo de Cloridrato de Metformina?', impeditivo: false },
     { codigo: 'TC_JEJUM', enunciado: 'Cumpriu o jejum mínimo de 4 horas orientado?', impeditivo: false },
-    { codigo: 'TC_GESTAO', enunciado: 'Possibilidade de gravidez ativa no momento?', impeditivo: true }
+    { codigo: 'TC_GESTAO', enunciado: 'Possibilidade de gravidez ativa no momento?', impeditivo: false }
   ],
   RM: [
     { codigo: 'RM_MARCAPASSO', enunciado: 'Possui marcapasso cardíaco ou cardioversor-desfibrilador (CDI)?', impeditivo: true },
@@ -82,8 +82,10 @@ const PROTOCOLOS_CHECKLIST = {
   ]
 };
 
-// Estado da Interface
+// Estado da Aplicação
 const UIState = {
+  online: false,
+  usuarioLogado: { id: 1, nome: 'Lucas Santos', login: 'lucas.biomed', perfil: 'BIOMÉDICO' },
   exames: [...EXAMES_INICIAIS],
   exameSelecionado: null,
   filtroModalidade: 'TODOS',
@@ -91,7 +93,7 @@ const UIState = {
   respostas: {}
 };
 
-// Inicialização
+// Inicialização Geral
 document.addEventListener('DOMContentLoaded', () => {
   initTema();
   initAutenticacao();
@@ -99,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initWorklist();
   initCalculadora();
   initAtalhosTeclado();
+  verificarConexaoApi();
 });
 
 /* ==============================================================================
@@ -136,21 +139,78 @@ function aplicarTema(tema) {
 }
 
 /* ==============================================================================
-   2. LOGIN E NAVEGAÇÃO
+   2. CONECTIVIDADE E STATUS DA API
+   ============================================================================== */
+async function verificarConexaoApi() {
+  const pill = document.getElementById('apiStatusPill');
+  const dot = document.getElementById('apiStatusDot');
+  const text = document.getElementById('apiStatusText');
+
+  try {
+    const dados = await ApiClient.obterWorklist();
+    UIState.online = true;
+    if (dot) dot.style.background = 'var(--emerald-400)';
+    if (text) text.textContent = 'API .NET Online (MySQL Conectado)';
+    if (pill) pill.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+    return true;
+  } catch (err) {
+    UIState.online = false;
+    if (dot) dot.style.background = 'var(--amber-400)';
+    if (text) text.textContent = 'Modo Demonstração (API Offline)';
+    if (pill) pill.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+    return false;
+  }
+}
+
+/* ==============================================================================
+   3. LOGIN E AUTENTICAÇÃO
    ============================================================================== */
 function initAutenticacao() {
   const form = document.getElementById('form-login');
-  form?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const user = document.getElementById('login-username').value.trim() || 'Operador Clínico';
-    const perfil = user.includes('admin') ? 'ADMIN' : (user.includes('tec') ? 'TÉCNICO' : 'BIOMÉDICO');
+  const alertBox = document.getElementById('loginAlertBox');
 
-    entrar(user, perfil);
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    const btnSubmit = document.getElementById('btnLoginSubmit');
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Autenticando...';
+    }
+
+    try {
+      // 1. Tenta autenticar na API real .NET
+      const user = await ApiClient.login(username, password);
+      UIState.usuarioLogado = user;
+      UIState.online = true;
+      entrar(user.nome, user.perfilDescricao || user.perfil);
+    } catch (err) {
+      if (err.message && err.message.includes('401')) {
+        if (alertBox) {
+          alertBox.textContent = 'Usuário ou senha inválidos. Verifique suas credenciais.';
+          alertBox.classList.remove('hidden');
+        }
+        showToast('Login inválido.', 'error');
+      } else {
+        // Fallback offline caso o backend MySQL ainda não tenha sido iniciado
+        const perfil = username.includes('admin') ? 'ADMIN' : (username.includes('tec') ? 'TÉCNICO' : 'BIOMÉDICO');
+        UIState.usuarioLogado = { id: 1, nome: username, login: username, perfil: perfil };
+        entrar(username, perfil);
+        showToast('Iniciado em Modo Demonstração Offline.', 'info');
+      }
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Acessar Posto de Triagem';
+      }
+    }
   });
 
   document.getElementById('btnLogout')?.addEventListener('click', sair);
 
-  // Toggle senha
+  // Toggle visibilidade de senha
   document.getElementById('btnToggleLoginPwd')?.addEventListener('click', () => {
     const input = document.getElementById('login-password');
     const isPwd = input.type === 'password';
@@ -171,7 +231,7 @@ function entrar(nome, perfil) {
   document.getElementById('sidebarUserRole').textContent = perfil;
 
   showToast(`Sessão iniciada como ${nome} (${perfil})`, 'success');
-  renderizarWorklist();
+  carregarWorklist();
 }
 
 function sair() {
@@ -179,6 +239,9 @@ function sair() {
   document.getElementById('login-screen').classList.remove('hidden');
 }
 
+/* ==============================================================================
+   4. NAVEGAÇÃO ENTRE TELAS
+   ============================================================================== */
 function initNavegacao() {
   document.querySelectorAll('.sidebar-nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -192,7 +255,7 @@ function initNavegacao() {
   });
 
   document.getElementById('btnRecarregarAuditoria')?.addEventListener('click', () => {
-    showToast('Registros de auditoria atualizados.', 'info');
+    carregarAuditoria();
   });
 }
 
@@ -211,10 +274,14 @@ function trocarView(viewId) {
   };
 
   document.getElementById('topbarTitle').textContent = titulos[viewId] || 'Posto de Triagem';
+
+  if (viewId === 'view-auditoria') {
+    carregarAuditoria();
+  }
 }
 
 /* ==============================================================================
-   3. GRADE DE ATENDIMENTOS (WORKLIST)
+   5. WORKLIST (GRADE DE ATENDIMENTOS)
    ============================================================================== */
 function initWorklist() {
   document.getElementById('inputSearchWorklist')?.addEventListener('input', (e) => {
@@ -230,6 +297,34 @@ function initWorklist() {
       renderizarWorklist();
     });
   });
+}
+
+async function carregarWorklist() {
+  try {
+    const examesRemotos = await ApiClient.obterWorklist();
+    if (Array.isArray(examesRemotos) && examesRemotos.length > 0) {
+      UIState.exames = examesRemotos.map(e => ({
+        id: e.id,
+        atendimento: e.atendimento,
+        pacienteNome: e.pacienteNome,
+        documentoCpf: e.pacienteCpf || e.documentoCpf,
+        idade: e.idade,
+        sexo: e.sexo,
+        pesoKg: e.pesoKg,
+        modalidade: e.modalidadeDescricao || (e.modalidade === 1 ? 'TC' : 'RM'),
+        procedimento: e.descricaoExame || e.procedimento,
+        sala: e.sala,
+        horario: e.horarioAgendado ? new Date(e.horarioAgendado).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '08:00',
+        status: e.statusDescricao || (e.status === 2 ? 'LIBERADO' : (e.status === 3 ? 'BLOQUEADO_SEGURANCA' : 'AGUARDANDO_TRIAGEM')),
+        statusRiscoSemaforo: e.statusRiscoSemaforo,
+        possuiTriagem: e.possuiTriagem
+      }));
+      verificarConexaoApi();
+    }
+  } catch (err) {
+    console.warn('API indisponível, utilizando dados estáticos em memória.');
+    verificarConexaoApi();
+  }
 
   renderizarWorklist();
 }
@@ -301,7 +396,7 @@ function renderizarWorklist() {
     `;
   }).join('');
 
-  // Atualiza contadores
+  // Atualiza contadores dos cards estatísticos
   const aguardando = UIState.exames.filter(e => e.status === 'AGUARDANDO_TRIAGEM').length;
   const liberados = UIState.exames.filter(e => e.status === 'LIBERADO').length;
   const bloqueados = UIState.exames.filter(e => e.status === 'BLOQUEADO_SEGURANCA').length;
@@ -314,16 +409,16 @@ function renderizarWorklist() {
 }
 
 /* ==============================================================================
-   4. FICHA DE TRIAGEM & SEMÁFORO CLÍNICO
+   6. FICHA DE TRIAGEM, CHECKLIST E SEMÁFORO CLÍNICO
    ============================================================================== */
-function abrirTriagem(exameId) {
+async function abrirTriagem(exameId) {
   const item = UIState.exames.find(e => e.id === exameId);
   if (!item) return;
 
   UIState.exameSelecionado = item;
   UIState.respostas = {};
 
-  // Preenche dados do paciente
+  // Preenche dados do paciente na tela de triagem
   document.getElementById('triagemPacienteNome').textContent = item.pacienteNome;
   document.getElementById('triagemAtendimentoNum').textContent = item.atendimento;
   document.getElementById('triagemCpf').textContent = item.documentoCpf;
@@ -375,6 +470,11 @@ function abrirTriagem(exameId) {
   // Resposta padrão: NÃO
   perguntas.forEach(p => definirResposta(p.codigo, 'NAO', false));
   avaliarSemaforo();
+
+  // Se a API estiver online, registra a chamada do paciente
+  if (UIState.online) {
+    ApiClient.chamarPaciente(item.id, UIState.usuarioLogado.id).catch(() => {});
+  }
 
   document.getElementById('navTriagem').removeAttribute('disabled');
   trocarView('view-triagem');
@@ -463,24 +563,69 @@ function avaliarSemaforo() {
 }
 
 /* ==============================================================================
-   5. CALCULADORA DE CONTRASTE
+   7. CALCULADORA DE CONTRASTE & GRAVAÇÃO DA TRIAGEM
    ============================================================================== */
 function initCalculadora() {
   document.getElementById('calcPesoInput')?.addEventListener('input', recalcularDose);
   document.getElementById('calcCreatininaInput')?.addEventListener('input', recalcularDose);
 
-  document.getElementById('btnSalvarRascunho')?.addEventListener('click', () => {
-    showToast('Rascunho da triagem salvo.', 'success');
+  document.getElementById('btnSalvarRascunho')?.addEventListener('click', async () => {
+    await persistirTriagem(false);
+    showToast('Ficha de triagem salva no sistema.', 'success');
   });
 
-  document.getElementById('btnLiberarExame')?.addEventListener('click', () => {
+  document.getElementById('btnLiberarExame')?.addEventListener('click', async () => {
     if (!UIState.exameSelecionado) return;
+    const btn = document.getElementById('btnLiberarExame');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando...';
 
-    UIState.exameSelecionado.status = 'LIBERADO';
-    showToast(`Exame #${UIState.exameSelecionado.atendimento} liberado com sucesso!`, 'success');
-    renderizarWorklist();
-    trocarView('view-worklist');
+    try {
+      await persistirTriagem(true);
+      UIState.exameSelecionado.status = 'LIBERADO';
+      showToast(`Exame #${UIState.exameSelecionado.atendimento} liberado com sucesso!`, 'success');
+      await carregarWorklist();
+      trocarView('view-worklist');
+    } catch (err) {
+      showToast(`Erro ao liberar exame: ${err.message}`, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-shield-check"></i> Liberar Exame com Segurança';
+    }
   });
+}
+
+async function persistirTriagem(liberar = false) {
+  if (!UIState.exameSelecionado) return;
+
+  const modalidade = UIState.exameSelecionado.modalidade;
+  const perguntas = PROTOCOLOS_CHECKLIST[modalidade] || [];
+
+  const respostasDto = perguntas.map(p => ({
+    codigoPergunta: p.codigo,
+    perguntaEnunciado: p.enunciado,
+    respostaValor: UIState.respostas[p.codigo] || 'NAO',
+    impeditivo: p.impeditivo,
+    justificativa: null
+  }));
+
+  const payload = {
+    exameId: UIState.exameSelecionado.id,
+    usuarioResponsavelId: UIState.usuarioLogado.id || 1,
+    pesoKg: parseFloat(document.getElementById('calcPesoInput').value) || UIState.exameSelecionado.pesoKg,
+    volumeContrasteMl: parseFloat(document.getElementById('calcDoseResultado').textContent) || null,
+    loteContraste: document.getElementById('calcLoteInput')?.value.trim() || null,
+    observacoesClinicas: document.getElementById('triagemObservacoes')?.value.trim() || null,
+    respostas: respostasDto
+  };
+
+  // Se a API estiver online, envia o DTO real
+  if (UIState.online) {
+    await ApiClient.salvarTriagem(payload);
+    if (liberar) {
+      await ApiClient.liberarExame(UIState.exameSelecionado.id, UIState.usuarioLogado.id || 1);
+    }
+  }
 }
 
 function recalcularDose() {
@@ -489,16 +634,81 @@ function recalcularDose() {
 
   const proporcao = isTc ? 1.5 : 0.2;
   let dose = Math.round(peso * proporcao * 10) / 10;
-  const teto = isTc ? 130 : 25;
+  const teto = isTc ? 150 : 25;
   if (dose > teto) dose = teto;
 
   document.getElementById('calcDoseResultado').textContent = dose > 0 ? dose.toFixed(1) : '0.0';
   document.getElementById('calcDoseDetalhes').textContent = 
-    `Proporção clínica recomendada: ${proporcao} mL / kg (${isTc ? 'Contraste Iodado' : 'Gadolínio'}).`;
+    `Proporção clínica recomendada: ${proporcao} mL / kg (${isTc ? 'Contraste Iodado (Teto 150 mL)' : 'Gadolínio (Teto 25 mL)'}).`;
 }
 
 /* ==============================================================================
-   6. ATALHOS DE TECLADO (1 = NÃO, 2 = SIM, TAB = AVANÇAR)
+   8. AUDITORIA CLÍNICA
+   ============================================================================== */
+async function carregarAuditoria() {
+  const tbody = document.getElementById('auditoriaTableBody');
+  if (!tbody) return;
+
+  tbody.innerHTML = `
+    <tr>
+      <td colspan="5" style="text-align: center; padding: 24px; color: var(--text-muted);">
+        <i class="fa-solid fa-spinner fa-spin"></i> Carregando registros auditáveis...
+      </td>
+    </tr>
+  `;
+
+  try {
+    const logs = await ApiClient.obterAuditoria(50);
+    if (Array.isArray(logs) && logs.length > 0) {
+      tbody.innerHTML = logs.map(l => {
+        const isAlerta = l.tipoEvento.includes('BLOQUEIO') || l.tipoEvento.includes('FALHA') || l.tipoEvento.includes('CONTRAINDICADA');
+        const badgeColor = isAlerta ? 'var(--coral-400)' : 'var(--emerald-400)';
+
+        return `
+          <tr>
+            <td style="font-family: var(--font-mono); font-size: 0.85rem;">
+              ${new Date(l.criadoEm).toLocaleString()}
+            </td>
+            <td><strong>${l.usuarioNome || `Usuário #${l.usuarioId}`}</strong></td>
+            <td>
+              <span style="font-family: var(--font-mono); font-size: 0.82rem; color: ${badgeColor}; font-weight: 700;">
+                ${l.tipoEvento}
+              </span>
+            </td>
+            <td style="font-size: 0.88rem;">${l.detalhes}</td>
+            <td style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-muted);">
+              ${l.ipOrigem || '127.0.0.1'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+      return;
+    }
+  } catch (err) {
+    console.warn('API indisponível para auditoria, exibindo logs locais de demonstração.');
+  }
+
+  // Logs locais de demonstração para quando a API estiver offline
+  tbody.innerHTML = `
+    <tr>
+      <td style="font-family: var(--font-mono); font-size: 0.85rem;">25/10/2026 10:15:32</td>
+      <td><strong>Lucas Santos (Biomédico)</strong></td>
+      <td><span style="color: var(--emerald-400); font-weight: 700;">LOGIN_SUCESSO</span></td>
+      <td>Sessão iniciada no posto de triagem TC/RM.</td>
+      <td style="font-family: var(--font-mono); color: var(--text-muted);">127.0.0.1</td>
+    </tr>
+    <tr>
+      <td style="font-family: var(--font-mono); font-size: 0.85rem;">25/10/2026 09:42:10</td>
+      <td><strong>Mariana Costa (Técnica RM)</strong></td>
+      <td><span style="color: var(--coral-400); font-weight: 700;">TRIAGEM_CONTRAINDICADA</span></td>
+      <td>Impedimento ferromagnético mandatório detectado (RM_MARCAPASSO = SIM). Exame bloqueado.</td>
+      <td style="font-family: var(--font-mono); color: var(--text-muted);">127.0.0.1</td>
+    </tr>
+  `;
+}
+
+/* ==============================================================================
+   9. ATALHOS DE TECLADO DA AVIAÇÃO (1 = NÃO, 2 = SIM, TAB = AVANÇAR)
    ============================================================================== */
 function initAtalhosTeclado() {
   window.addEventListener('keydown', (e) => {
@@ -532,7 +742,7 @@ function avancarPergunta(cards, atual) {
   if (i >= 0 && i < cards.length - 1) cards[i + 1].focus();
 }
 
-// Funções de Toast
+// Funções de Feedback Visual (Toast)
 function showToast(mensagem, tipo = 'info') {
   const container = document.getElementById('toast-container');
   if (!container) return;

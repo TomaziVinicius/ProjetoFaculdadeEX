@@ -1,41 +1,68 @@
-using Microsoft.AspNetCore.Http;
+using System.Net.Sockets;
 using Microsoft.EntityFrameworkCore;
-using TriagemImagem.Application.DTOs;
+using TriagemImagem.Api.Middlewares;
 using TriagemImagem.Application.Extensions;
-using TriagemImagem.Application.Interfaces;
-using TriagemImagem.Domain.Exceptions;
 using TriagemImagem.Infrastructure.Data.Context;
 using TriagemImagem.Infrastructure.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 1. Configuração do Banco de Dados com Detecção Automática (MySQL se ativo na porta, ou SQLite Portátil)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "Server=localhost;Port=3306;Database=triagem_imagem_db;User=root;Password=;TreatTinyAsBoolean=true;";
 
+var (mysqlHost, mysqlPort) = ExtrairHostPorta(connectionString);
+var mysqlDisponivel = TestarConexaoTcp(mysqlHost, mysqlPort, 400);
+
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    try
+    if (mysqlDisponivel)
     {
-        options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+        try
+        {
+            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+        }
+        catch
+        {
+            options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 36)));
+        }
     }
-    catch
+    else
     {
-        options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 36)));
+        var dbPath = Path.Combine(AppContext.BaseDirectory, "triagem_imagem.db");
+        options.UseSqlite($"Data Source={dbPath}");
     }
 });
 
+// 2. Controladores REST e Documentação Swagger OpenAPI
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddCors(options => options.AddPolicy("Frontend", policy => policy
-    .AllowAnyOrigin()
-    .AllowAnyHeader()
-    .AllowAnyMethod()));
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "Sistema de Triagem para Diagnóstico por Imagem (TC & RM)",
+        Version = "v1",
+        Description = "API RESTful desenvolvida sob Onion Architecture para triagem clínica, checklist da aviação e semáforo de risco."
+    });
+});
+
+// 3. Política de CORS para permitir comunicação com o Frontend
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy => policy
+        .AllowAnyOrigin()
+        .AllowAnyHeader()
+        .AllowAnyMethod());
+});
+
+// 4. Registro dos Repositórios e Serviços de Domínio e Aplicação
 builder.Services.AddInfrastructureRepositories();
 builder.Services.AddApplicationServices();
 
 var app = builder.Build();
 
+// 5. Auto-criação e Carga Inicial (Seed) do Banco de Dados
 using (var scope = app.Services.CreateScope())
 {
     try
@@ -43,33 +70,21 @@ using (var scope = app.Services.CreateScope())
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         context.Database.EnsureCreated();
         DbSeeder.Seed(context);
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        var provedor = context.Database.ProviderName?.Contains("Sqlite") == true ? "SQLite Portátil" : "MySQL";
+        logger.LogInformation("Banco de dados pronto para uso ({Provedor}).", provedor);
     }
     catch (Exception ex)
     {
         scope.ServiceProvider.GetRequiredService<ILogger<Program>>()
-            .LogWarning(ex, "Banco MySQL local não conectado. Inicie o serviço para aplicar a persistência.");
+            .LogWarning(ex, "Aviso ao inicializar persistência do banco.");
     }
 }
 
-app.Use(async (context, next) =>
-{
-    try
-    {
-        await next();
-    }
-    catch (DomainException ex)
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = ex.Message });
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogError(ex, "Erro não tratado em {Method} {Path}", context.Request.Method, context.Request.Path);
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-        await context.Response.WriteAsJsonAsync(new { success = false, message = "Ocorreu um erro interno no servidor." });
-    }
-});
+// 6. Middleware Global para Tratamento de Erros e Regras Clínicas (DomainException)
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+// 7. Pipeline HTTP
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -81,81 +96,45 @@ app.UseCors("Frontend");
 app.UseAuthorization();
 app.MapControllers();
 
-app.MapPost("/api/v1/auth/login", async (LoginRequestDto request, IAuthAppService service) =>
-{
-    var usuario = await service.AutenticarAsync(request);
-    return usuario is null
-        ? Results.Json(new { success = false, message = "Login ou senha inválidos." }, statusCode: StatusCodes.Status401Unauthorized)
-        : Results.Ok(usuario);
-});
-
-app.MapGet("/api/v1/worklist", async ([AsParameters] FiltroWorklistDto filtro, IWorklistAppService service) =>
-    Results.Ok(await service.ObterWorklistAsync(filtro)));
-
-app.MapGet("/api/v1/worklist/{exameId:int}", async (int exameId, IWorklistAppService service) =>
-{
-    var exame = await service.ObterExamePorIdAsync(exameId);
-    return exame is null
-        ? Results.Json(new { success = false, message = "Exame não encontrado." }, statusCode: StatusCodes.Status404NotFound)
-        : Results.Ok(exame);
-});
-
-app.MapPost("/api/v1/worklist/{exameId:int}/chamar", async (int exameId, ChamarPacienteRequest request, IWorklistAppService service) =>
-{
-    var chamado = await service.ChamarPacienteAsync(exameId, request.UsuarioId);
-    return chamado
-        ? Results.Ok(new { success = true, message = "Paciente chamado com sucesso." })
-        : Results.Json(new { success = false, message = "Exame não encontrado." }, statusCode: StatusCodes.Status404NotFound);
-});
-
-app.MapPost("/api/v1/triagem", async (SalvarTriagemRequestDto request, ITriagemAppService service) =>
-    Results.Ok(await service.SalvarTriagemAsync(request)));
-
-app.MapGet("/api/v1/triagem/exame/{exameId:int}", async (int exameId, ITriagemAppService service) =>
-{
-    var triagem = await service.ObterPorExameIdAsync(exameId);
-    return triagem is null
-        ? Results.Json(new { success = false, message = "Triagem não encontrada para este exame." }, statusCode: StatusCodes.Status404NotFound)
-        : Results.Ok(triagem);
-});
-
-app.MapPost("/api/v1/triagem/calcular-dose", (CalcularDoseRequestDto request, ICalculoDoseAppService service) =>
-    Results.Ok(service.CalcularDose(request)));
-
-app.MapPost("/api/v1/triagem/{exameId:int}/liberar", async (int exameId, LiberarExameRequest request, ITriagemAppService service) =>
-{
-    var liberado = await service.LiberarExameAsync(exameId, request.UsuarioId, request.Observacao);
-    return liberado
-        ? Results.Ok(new { success = true, message = "Exame liberado para execução." })
-        : Results.Json(new { success = false, message = "Exame não encontrado." }, statusCode: StatusCodes.Status404NotFound);
-});
-
-app.MapPost("/api/v1/triagem/{exameId:int}/cancelar", async (int exameId, CancelarExameRequest request, ITriagemAppService service) =>
-{
-    var cancelado = await service.CancelarExameAsync(exameId, request.UsuarioId, request.Motivo);
-    return cancelado
-        ? Results.Ok(new { success = true, message = "Exame cancelado." })
-        : Results.Json(new { success = false, message = "Exame não encontrado." }, statusCode: StatusCodes.Status404NotFound);
-});
-
-app.MapGet("/api/v1/auditoria", async (int? limite, IAuditoriaAppService service) =>
-    Results.Ok(await service.ObterUltimosLogsAsync(Math.Clamp(limite ?? 50, 1, 200))));
-
 app.Run();
 
-public sealed class ChamarPacienteRequest
-{
-    public int UsuarioId { get; set; }
-}
+public partial class Program 
+{ 
+    public static (string host, int port) ExtrairHostPorta(string connStr)
+    {
+        var host = "localhost";
+        var port = 3306;
+        foreach (var part in connStr.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var kv = part.Split('=', 2);
+            if (kv.Length == 2)
+            {
+                var key = kv[0].Trim().ToLowerInvariant();
+                var val = kv[1].Trim();
+                if (key == "server" || key == "host") host = val;
+                if (key == "port" && int.TryParse(val, out var p)) port = p;
+            }
+        }
+        return (host, port);
+    }
 
-public sealed class LiberarExameRequest
-{
-    public int UsuarioId { get; set; }
-    public string? Observacao { get; set; }
-}
-
-public sealed class CancelarExameRequest
-{
-    public int UsuarioId { get; set; }
-    public string Motivo { get; set; } = string.Empty;
+    public static bool TestarConexaoTcp(string host, int port, int timeoutMs)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            var ar = client.BeginConnect(host, port, null, null);
+            var success = ar.AsyncWaitHandle.WaitOne(TimeSpan.FromMilliseconds(timeoutMs));
+            if (success && client.Connected)
+            {
+                client.EndConnect(ar);
+                return true;
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
