@@ -56,6 +56,34 @@ public class WorklistController : ControllerBase
 
         return Ok(new { success = true, message = "Paciente chamado com sucesso." });
     }
+
+    /// <summary>
+    /// Consulta os agendamentos diretamente no Banco de Dados 2 (Laboratório / HIS-RIS Worklist).
+    /// Demonstra a integração entre o sistema hospitalar e a estação de triagem.
+    /// </summary>
+    [HttpGet("laboratorio")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListarLaboratorio([FromServices] TriagemImagem.Domain.Repositories.IWorklistLabRepository labRepo)
+    {
+        var pedidos = await labRepo.ListarPedidosAsync();
+        return Ok(pedidos.Select(p => new
+        {
+            atendimento = p.Atendimento,
+            paciente = p.Paciente?.NomeCompleto,
+            cpf = p.Paciente?.DocumentoCpf,
+            modalidade = p.Modalidade.ToString(),
+            procedimento = p.DescricaoProcedimento,
+            tipoFormulario = p.TipoFormulario,
+            segmentoLado = p.SegmentoLado,
+            preparoAdequado = p.PreparoAdequado,
+            motivoExame = p.MotivoExame,
+            medico = $"{p.MedicoSolicitante} ({p.CrmMedico})",
+            convenio = p.Convenio,
+            sala = p.Sala,
+            horario = p.HorarioAgendado,
+            status = p.Status
+        }));
+    }
 }
 
 public class ChamarPacienteRequest

@@ -18,6 +18,11 @@ public class ExameWorklistDto
     public string ModalidadeDescricao => Modalidade.ToString();
     public string CodigoProcedimento { get; set; } = string.Empty;
     public string DescricaoExame { get; set; } = string.Empty;
+    public string TipoFormulario { get; set; } = "RM_COLUNA";
+    public string? SegmentoLado { get; set; }
+    public string? MotivoExame { get; set; }
+    public string? MedicoSolicitante { get; set; }
+    public string? Convenio { get; set; }
     public string Sala { get; set; } = string.Empty;
     public DateTime HorarioAgendado { get; set; }
     public DateTime? HorarioChamada { get; set; }

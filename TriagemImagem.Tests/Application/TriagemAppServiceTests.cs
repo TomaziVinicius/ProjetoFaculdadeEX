@@ -55,6 +55,24 @@ public class TriagemAppServiceTests
         public Task<int> SalvarAlteracoesAsync() => Task.FromResult(1);
     }
 
+    private class FakeUsuarioRepository : IUsuarioRepository
+    {
+        public Task<Usuario?> ObterPorIdAsync(int id) => Task.FromResult<Usuario?>(new Usuario { Id = id, Nome = "Operador Teste" });
+        public Task<Usuario?> ObterPorLoginAsync(string login) => Task.FromResult<Usuario?>(null);
+        public Task<IEnumerable<Usuario>> ListarAtivosAsync() => Task.FromResult(Enumerable.Empty<Usuario>());
+        public Task AdicionarAsync(Usuario usuario) => Task.CompletedTask;
+        public Task AtualizarAsync(Usuario usuario) => Task.CompletedTask;
+        public Task<int> SalvarAlteracoesAsync() => Task.FromResult(1);
+    }
+
+    private class FakeRelatorioTriagemAppService : TriagemImagem.Application.Interfaces.IRelatorioTriagemAppService
+    {
+        public Task<string> GerarEArmazenarRelatorioAsync(Exame exame, FormularioTriagem formulario, ResultadoSemaforoClinico avaliacao, string nomeUsuario)
+        {
+            return Task.FromResult("C:\\Documentos\\Triagens\\Teste.html");
+        }
+    }
+
     [Fact]
     public async Task SalvarTriagem_RespostasNormais_DeveLiberarExameParaExecucao()
     {
@@ -75,7 +93,8 @@ public class TriagemAppServiceTests
         var semaforoService = new SemaforoClinicoDomainService();
 
         var service = new TriagemAppService(
-            fakeTriagemRepo, fakeExameRepo, fakePacienteRepo, semaforoService, fakeAuditoriaRepo);
+            fakeTriagemRepo, fakeExameRepo, fakePacienteRepo, semaforoService, fakeAuditoriaRepo,
+            new FakeUsuarioRepository(), new FakeRelatorioTriagemAppService());
 
         var request = new SalvarTriagemRequestDto
         {
@@ -122,7 +141,8 @@ public class TriagemAppServiceTests
         var semaforoService = new SemaforoClinicoDomainService();
 
         var service = new TriagemAppService(
-            fakeTriagemRepo, fakeExameRepo, fakePacienteRepo, semaforoService, fakeAuditoriaRepo);
+            fakeTriagemRepo, fakeExameRepo, fakePacienteRepo, semaforoService, fakeAuditoriaRepo,
+            new FakeUsuarioRepository(), new FakeRelatorioTriagemAppService());
 
         var request = new SalvarTriagemRequestDto
         {
@@ -154,7 +174,8 @@ public class TriagemAppServiceTests
         var fakeExameRepo = new FakeExameRepository { ExameArmazenado = null };
         var service = new TriagemAppService(
             new FakeTriagemRepository(), fakeExameRepo, new FakePacienteRepository(), 
-            new SemaforoClinicoDomainService(), new FakeAuditoriaRepository());
+            new SemaforoClinicoDomainService(), new FakeAuditoriaRepository(),
+            new FakeUsuarioRepository(), new FakeRelatorioTriagemAppService());
 
         var request = new SalvarTriagemRequestDto
         {

@@ -14,6 +14,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuthAppService, AuthAppService>();
         services.AddScoped<IWorklistAppService, WorklistAppService>();
         services.AddScoped<ITriagemAppService, TriagemAppService>();
+        services.AddScoped<IRelatorioTriagemAppService, RelatorioTriagemAppService>();
         services.AddScoped<ICalculoDoseAppService, CalculoDoseAppService>();
         services.AddScoped<IAuditoriaAppService, AuditoriaAppService>();
 

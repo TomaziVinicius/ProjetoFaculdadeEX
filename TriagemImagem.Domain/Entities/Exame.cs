@@ -13,6 +13,11 @@ public class Exame
     public int SequenciaInterna { get; set; } = 1;
     public string DescricaoExame { get; set; } = string.Empty;
     public ModalidadeExame Modalidade { get; set; } = ModalidadeExame.TC;
+    public string TipoFormulario { get; set; } = "RM_COLUNA";
+    public string? SegmentoLado { get; set; }
+    public string? MotivoExame { get; set; }
+    public string? MedicoSolicitante { get; set; }
+    public string? Convenio { get; set; }
     public string Sala { get; set; } = string.Empty;
 
     public DateTime HorarioAgendado { get; set; }
@@ -22,3 +27,4 @@ public class Exame
     public StatusExame Status { get; set; } = StatusExame.AGUARDANDO_TRIAGEM;
     public DateTime CriadoEm { get; set; } = DateTime.UtcNow;
 }
+

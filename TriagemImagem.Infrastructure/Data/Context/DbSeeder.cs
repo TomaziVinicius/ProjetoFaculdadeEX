@@ -92,58 +92,78 @@ public static class DbSeeder
         context.Pacientes.AddRange(p1, p2, p3, p4);
         context.SaveChanges();
 
-        // 3. Exames Agendados do Dia
+        // 3. Exames Agendados do Dia com Formulários Especializados
         var e1 = new Exame
         {
-            PacienteId = p1.Id,
+            PacienteId = p4.Id, // Fernanda Lima Rocha
             Atendimento = 104520,
-            CodigoProcedimento = "41001010",
+            CodigoProcedimento = "41101022",
             SequenciaInterna = 1,
-            DescricaoExame = "Tomografia Computadorizada de Tórax com Contraste",
-            Modalidade = ModalidadeExame.TC,
-            Sala = "TC-01",
-            HorarioAgendado = DateTime.Today.AddHours(8).AddMinutes(30),
+            DescricaoExame = "Ressonância Magnética de Coluna Lombar",
+            Modalidade = ModalidadeExame.RM,
+            TipoFormulario = "RM_COLUNA",
+            SegmentoLado = "Lombar",
+            MotivoExame = "Lombociatalgia crônica refratária com irradiação para membro inferior esquerdo.",
+            MedicoSolicitante = "Dr. Marcos Valério (CRM/PR 24150)",
+            Convenio = "Unimed",
+            Sala = "RM-01",
+            HorarioAgendado = DateTime.Today.AddHours(8).AddMinutes(0),
             Status = StatusExame.AGUARDANDO_TRIAGEM,
             CriadoEm = DateTime.UtcNow
         };
 
         var e2 = new Exame
         {
-            PacienteId = p2.Id,
+            PacienteId = p3.Id, // Carlos Eduardo Mendes
             Atendimento = 104521,
-            CodigoProcedimento = "41101014",
+            CodigoProcedimento = "41101030",
             SequenciaInterna = 1,
-            DescricaoExame = "Ressonância Magnética de Crânio com Contraste",
+            DescricaoExame = "Ressonância Magnética de Braço e Antebraço",
             Modalidade = ModalidadeExame.RM,
-            Sala = "RM-01",
-            HorarioAgendado = DateTime.Today.AddHours(9).AddMinutes(0),
+            TipoFormulario = "RM_BRACO_ANTEBRACO",
+            SegmentoLado = "Direito",
+            MotivoExame = "Queda com trauma esportivo em membro superior direito. Dor e fraqueza de preensão.",
+            MedicoSolicitante = "Dra. Camila Toledo (CRM/PR 31200)",
+            Convenio = "Bradesco Saúde",
+            Sala = "RM-02",
+            HorarioAgendado = DateTime.Today.AddHours(8).AddMinutes(45),
             Status = StatusExame.AGUARDANDO_TRIAGEM,
             CriadoEm = DateTime.UtcNow
         };
 
         var e3 = new Exame
         {
-            PacienteId = p3.Id,
+            PacienteId = p2.Id, // Maria Aparecida Souza
             Atendimento = 104522,
-            CodigoProcedimento = "41001028",
+            CodigoProcedimento = "41101049",
             SequenciaInterna = 1,
-            DescricaoExame = "Tomografia Computadorizada de Abdômen Total com Contraste",
-            Modalidade = ModalidadeExame.TC,
-            Sala = "TC-02",
-            HorarioAgendado = DateTime.Today.AddHours(9).AddMinutes(40),
+            DescricaoExame = "Ressonância Magnética de Bacia e Articulação do Quadril",
+            Modalidade = ModalidadeExame.RM,
+            TipoFormulario = "RM_BACIA_QUADRIL",
+            SegmentoLado = "Esquerdo",
+            MotivoExame = "Dor profunda articular em quadril esquerdo. Uso contínuo de corticoide.",
+            MedicoSolicitante = "Dr. Roberto Silveira (CRM/PR 19850)",
+            Convenio = "Paraná Clínicas",
+            Sala = "RM-01",
+            HorarioAgendado = DateTime.Today.AddHours(9).AddMinutes(30),
             Status = StatusExame.AGUARDANDO_TRIAGEM,
             CriadoEm = DateTime.UtcNow
         };
 
         var e4 = new Exame
         {
-            PacienteId = p4.Id,
+            PacienteId = p1.Id, // João Carlos de Oliveira
             Atendimento = 104523,
-            CodigoProcedimento = "41101022",
+            CodigoProcedimento = "41001010",
             SequenciaInterna = 1,
-            DescricaoExame = "Ressonância Magnética de Coluna Lombar",
-            Modalidade = ModalidadeExame.RM,
-            Sala = "RM-02",
+            DescricaoExame = "Tomografia Computadorizada de Tórax com Contraste",
+            Modalidade = ModalidadeExame.TC,
+            TipoFormulario = "TC_TORAX",
+            SegmentoLado = "Tórax",
+            MotivoExame = "Nódulo pulmonar em lobo superior direito a esclarecer.",
+            MedicoSolicitante = "Dra. Beatriz Fontana (CRM/PR 28900)",
+            Convenio = "Unimed",
+            Sala = "TC-01",
             HorarioAgendado = DateTime.Today.AddHours(10).AddMinutes(15),
             Status = StatusExame.AGUARDANDO_TRIAGEM,
             CriadoEm = DateTime.UtcNow

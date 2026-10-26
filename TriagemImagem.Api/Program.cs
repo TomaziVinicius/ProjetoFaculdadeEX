@@ -7,13 +7,17 @@ using TriagemImagem.Infrastructure.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configuração do Banco de Dados com Detecção Automática (MySQL se ativo na porta, ou SQLite Portátil)
+// 1. Configuração dos Bancos de Dados com Detecção Automática (MySQL se ativo na porta, ou SQLite Portátil)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "Server=localhost;Port=3306;Database=triagem_imagem_db;User=root;Password=;TreatTinyAsBoolean=true;";
+
+var worklistConnString = builder.Configuration.GetConnectionString("WorklistLabConnection")
+    ?? "Server=localhost;Port=3306;Database=worklist_lab_db;User=root;Password=;TreatTinyAsBoolean=true;";
 
 var (mysqlHost, mysqlPort) = ExtrairHostPorta(connectionString);
 var mysqlDisponivel = TestarConexaoTcp(mysqlHost, mysqlPort, 400);
 
+// Banco de Dados 1: Aplicação de Triagem Clínica
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     if (mysqlDisponivel)
@@ -31,6 +35,27 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     {
         var dbPath = Path.Combine(AppContext.BaseDirectory, "triagem_imagem.db");
         options.UseSqlite($"Data Source={dbPath}");
+    }
+});
+
+// Banco de Dados 2: Worklist Laboratorial / HIS-RIS
+builder.Services.AddDbContext<WorklistLabDbContext>(options =>
+{
+    if (mysqlDisponivel)
+    {
+        try
+        {
+            options.UseMySql(worklistConnString, ServerVersion.AutoDetect(worklistConnString));
+        }
+        catch
+        {
+            options.UseMySql(worklistConnString, new MySqlServerVersion(new Version(8, 0, 36)));
+        }
+    }
+    else
+    {
+        var dbPathLab = Path.Combine(AppContext.BaseDirectory, "worklist_lab.db");
+        options.UseSqlite($"Data Source={dbPathLab}");
     }
 });
 
@@ -62,22 +87,29 @@ builder.Services.AddApplicationServices();
 
 var app = builder.Build();
 
-// 5. Auto-criação e Carga Inicial (Seed) do Banco de Dados
+// 5. Auto-criação e Carga Inicial (Seed) dos Bancos de Dados 1 e 2
 using (var scope = app.Services.CreateScope())
 {
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     try
     {
+        // Banco 1: Aplicação de Triagem
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         context.Database.EnsureCreated();
         DbSeeder.Seed(context);
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        var provedor = context.Database.ProviderName?.Contains("Sqlite") == true ? "SQLite Portátil" : "MySQL";
-        logger.LogInformation("Banco de dados pronto para uso ({Provedor}).", provedor);
+        var provedor1 = context.Database.ProviderName?.Contains("Sqlite") == true ? "SQLite Portátil" : "MySQL";
+        logger.LogInformation("Banco de Dados 1 (Triagem) pronto para uso ({Provedor}).", provedor1);
+
+        // Banco de Dados 2: Worklist Laboratorial (HIS/RIS)
+        var contextLab = scope.ServiceProvider.GetRequiredService<WorklistLabDbContext>();
+        contextLab.Database.EnsureCreated();
+        WorklistLabDbSeeder.Seed(contextLab);
+        var provedor2 = contextLab.Database.ProviderName?.Contains("Sqlite") == true ? "SQLite Portátil" : "MySQL";
+        logger.LogInformation("Banco de Dados 2 (Worklist Lab) pronto para uso ({Provedor}).", provedor2);
     }
     catch (Exception ex)
     {
-        scope.ServiceProvider.GetRequiredService<ILogger<Program>>()
-            .LogWarning(ex, "Aviso ao inicializar persistência do banco.");
+        logger.LogWarning(ex, "Aviso ao inicializar persistência dos bancos de dados.");
     }
 }
 

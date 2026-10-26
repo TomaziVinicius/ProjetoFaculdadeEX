@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITriagemRepository, TriagemRepository>();
         services.AddScoped<IUsuarioRepository, UsuarioRepository>();
         services.AddScoped<IAuditoriaRepository, AuditoriaRepository>();
+        services.AddScoped<IWorklistLabRepository, WorklistLabRepository>();
 
         // Serviços de Domínio Clínico
         services.AddScoped<ISemaforoClinicoDomainService, SemaforoClinicoDomainService>();

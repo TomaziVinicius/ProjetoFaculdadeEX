@@ -16,19 +16,25 @@ public class TriagemAppService : ITriagemAppService
     private readonly IPacienteRepository _pacienteRepository;
     private readonly ISemaforoClinicoDomainService _semaforoDomainService;
     private readonly IAuditoriaRepository _auditoriaRepository;
+    private readonly IUsuarioRepository _usuarioRepository;
+    private readonly IRelatorioTriagemAppService _relatorioService;
 
     public TriagemAppService(
         ITriagemRepository triagemRepository,
         IExameRepository exameRepository,
         IPacienteRepository pacienteRepository,
         ISemaforoClinicoDomainService semaforoDomainService,
-        IAuditoriaRepository auditoriaRepository)
+        IAuditoriaRepository auditoriaRepository,
+        IUsuarioRepository usuarioRepository,
+        IRelatorioTriagemAppService relatorioService)
     {
         _triagemRepository = triagemRepository;
         _exameRepository = exameRepository;
         _pacienteRepository = pacienteRepository;
         _semaforoDomainService = semaforoDomainService;
         _auditoriaRepository = auditoriaRepository;
+        _usuarioRepository = usuarioRepository;
+        _relatorioService = relatorioService;
     }
 
     public async Task<DetalhesTriagemDto> SalvarTriagemAsync(SalvarTriagemRequestDto request)
@@ -94,7 +100,22 @@ public class TriagemAppService : ITriagemAppService
         await _exameRepository.AtualizarAsync(exame);
         await _exameRepository.SalvarAlteracoesAsync();
 
-        // 7. Registro de Trilha de Auditoria
+        // 7. Geração e Arquivamento da Ficha Clínica na pasta Documentos
+        try
+        {
+            var usuario = await _usuarioRepository.ObterPorIdAsync(request.UsuarioResponsavelId);
+            var nomeOperador = usuario?.Nome ?? "Equipe de Biomedicina";
+            var caminhoArquivo = await _relatorioService.GerarEArmazenarRelatorioAsync(exame, formulario, avaliacao, nomeOperador);
+            formulario.CaminhoArquivoArmazenado = caminhoArquivo;
+            await _triagemRepository.SalvarAsync(formulario);
+            await _triagemRepository.SalvarAlteracoesAsync();
+        }
+        catch
+        {
+            // Fallback de permissão de pasta sem interromper a transação da triagem
+        }
+
+        // 8. Registro de Trilha de Auditoria
         var eventoTipo = avaliacao.BloqueiaExame ? "TRIAGEM_CONTRAINDICADA" : "TRIAGEM_CONCLUIDA";
         var resumoAlertas = avaliacao.BloqueiaExame 
             ? string.Join(" | ", avaliacao.MotivosContraindicacao)
@@ -105,7 +126,7 @@ public class TriagemAppService : ITriagemAppService
             UsuarioId = request.UsuarioResponsavelId,
             ExameId = exame.Id,
             TipoEvento = eventoTipo,
-            Detalhes = $"Triagem finalizada com status '{avaliacao.StatusRisco}'. {resumoAlertas}"
+            Detalhes = $"Triagem finalizada com status '{avaliacao.StatusRisco}'. Arquivo salvo: '{formulario.CaminhoArquivoArmazenado}'. {resumoAlertas}"
         });
 
         return new DetalhesTriagemDto
@@ -120,6 +141,7 @@ public class TriagemAppService : ITriagemAppService
             ObservacoesClinicas = formulario.ObservacoesClinicas,
             IniciadoEm = formulario.IniciadoEm,
             FinalizadoEm = formulario.FinalizadoEm,
+            CaminhoArquivoArmazenado = formulario.CaminhoArquivoArmazenado,
             MotivosContraindicacao = avaliacao.MotivosContraindicacao.ToList(),
             AlertasAtencao = avaliacao.AlertasAtencao.ToList(),
             Respostas = request.Respostas
@@ -148,6 +170,7 @@ public class TriagemAppService : ITriagemAppService
             ObservacoesClinicas = formulario.ObservacoesClinicas,
             IniciadoEm = formulario.IniciadoEm,
             FinalizadoEm = formulario.FinalizadoEm,
+            CaminhoArquivoArmazenado = formulario.CaminhoArquivoArmazenado,
             MotivosContraindicacao = avaliacao.MotivosContraindicacao.ToList(),
             AlertasAtencao = avaliacao.AlertasAtencao.ToList(),
             Respostas = formulario.Respostas.Select(r => new ItemRespostaDto

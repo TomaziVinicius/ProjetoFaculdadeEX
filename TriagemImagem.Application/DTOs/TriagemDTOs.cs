@@ -39,6 +39,7 @@ public class DetalhesTriagemDto
 
     public DateTime IniciadoEm { get; set; }
     public DateTime? FinalizadoEm { get; set; }
+    public string? CaminhoArquivoArmazenado { get; set; }
 
     public List<ItemRespostaDto> Respostas { get; set; } = new();
     public List<string> MotivosContraindicacao { get; set; } = new();

@@ -115,5 +115,15 @@ const ApiClient = {
   // 10. Trilha de Auditoria Clínica (-> List<AuditoriaLogDto>)
   async obterAuditoria(limite = 50) {
     return await this.request(`/auditoria?limite=${limite}`, { method: 'GET' });
+  },
+
+  // 11. Status de Conexão com os Dois Bancos de Dados (Banco 1: Triagem, Banco 2: Laboratório)
+  async obterStatusBancos() {
+    return await this.request('/database/status', { method: 'GET' });
+  },
+
+  // 12. Consulta de Agendamentos diretamente no Banco de Dados 2 (Laboratório / HIS-RIS)
+  async obterWorklistLaboratorio() {
+    return await this.request('/worklist/laboratorio', { method: 'GET' });
   }
 };

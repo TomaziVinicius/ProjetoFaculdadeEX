@@ -8,63 +8,144 @@ const EXAMES_INICIAIS = [
   {
     id: 1,
     atendimento: 104520,
-    pacienteNome: 'João Carlos de Oliveira',
-    documentoCpf: '12345678901',
-    idade: 51,
-    sexo: 'M',
-    pesoKg: 78.5,
-    modalidade: 'TC',
-    procedimento: 'Tomografia Computadorizada de Tórax com Contraste',
-    sala: 'TC-01',
-    horario: '08:30',
-    status: 'AGUARDANDO_TRIAGEM'
-  },
-  {
-    id: 2,
-    atendimento: 104521,
-    pacienteNome: 'Maria Aparecida Souza',
-    documentoCpf: '98765432100',
-    idade: 64,
-    sexo: 'F',
-    pesoKg: 64.0,
-    modalidade: 'RM',
-    procedimento: 'Ressonância Magnética de Crânio com Contraste',
-    sala: 'RM-01',
-    horario: '09:00',
-    status: 'AGUARDANDO_TRIAGEM'
-  },
-  {
-    id: 3,
-    atendimento: 104522,
-    pacienteNome: 'Carlos Eduardo Mendes',
-    documentoCpf: '45678912344',
-    idade: 38,
-    sexo: 'M',
-    pesoKg: 82.0,
-    modalidade: 'TC',
-    procedimento: 'Tomografia Computadorizada de Abdômen Total com Contraste',
-    sala: 'TC-02',
-    horario: '09:40',
-    status: 'AGUARDANDO_TRIAGEM'
-  },
-  {
-    id: 4,
-    atendimento: 104523,
     pacienteNome: 'Fernanda Lima Rocha',
     documentoCpf: '78912345688',
     idade: 31,
     sexo: 'F',
     pesoKg: 58.0,
     modalidade: 'RM',
+    tipoFormulario: 'RM_COLUNA',
+    segmentoLado: 'Lombar',
     procedimento: 'Ressonância Magnética de Coluna Lombar',
+    sala: 'RM-01',
+    horario: '08:00',
+    status: 'AGUARDANDO_TRIAGEM'
+  },
+  {
+    id: 2,
+    atendimento: 104521,
+    pacienteNome: 'Carlos Eduardo Mendes',
+    documentoCpf: '45678912344',
+    idade: 38,
+    sexo: 'M',
+    pesoKg: 82.0,
+    modalidade: 'RM',
+    tipoFormulario: 'RM_BRACO_ANTEBRACO',
+    segmentoLado: 'Direito',
+    procedimento: 'Ressonância Magnética de Braço e Antebraço',
     sala: 'RM-02',
+    horario: '08:45',
+    status: 'AGUARDANDO_TRIAGEM'
+  },
+  {
+    id: 3,
+    atendimento: 104522,
+    pacienteNome: 'Maria Aparecida Souza',
+    documentoCpf: '98765432100',
+    idade: 64,
+    sexo: 'F',
+    pesoKg: 64.0,
+    modalidade: 'RM',
+    tipoFormulario: 'RM_BACIA_QUADRIL',
+    segmentoLado: 'Esquerdo',
+    procedimento: 'Ressonância Magnética de Bacia e Articulação do Quadril',
+    sala: 'RM-01',
+    horario: '09:30',
+    status: 'AGUARDANDO_TRIAGEM'
+  },
+  {
+    id: 4,
+    atendimento: 104523,
+    pacienteNome: 'João Carlos de Oliveira',
+    documentoCpf: '12345678901',
+    idade: 51,
+    sexo: 'M',
+    pesoKg: 78.5,
+    modalidade: 'TC',
+    tipoFormulario: 'TC_TORAX',
+    segmentoLado: 'Tórax',
+    procedimento: 'Tomografia Computadorizada de Tórax com Contraste',
+    sala: 'TC-01',
     horario: '10:15',
+    status: 'AGUARDANDO_TRIAGEM'
+  },
+  {
+    id: 5,
+    atendimento: 104524,
+    pacienteNome: 'Lucas Ferreira da Silva',
+    documentoCpf: '32165498722',
+    idade: 36,
+    sexo: 'M',
+    pesoKg: 74.0,
+    modalidade: 'TC',
+    tipoFormulario: 'TC_ABDOMEN',
+    segmentoLado: 'Abdômen Total',
+    procedimento: 'Tomografia Computadorizada de Abdômen Total com Contraste',
+    sala: 'TC-02',
+    horario: '11:00',
     status: 'AGUARDANDO_TRIAGEM'
   }
 ];
 
-// Checklist de Segurança por Modalidade
+// Checklists de Segurança Especializados (Baseados no Instituto de Diagnóstico por Imagem)
 const PROTOCOLOS_CHECKLIST = {
+  // 1. QUESTIONÁRIO PARA RESSONÂNCIA DA COLUNA (Cervical / Torácica / Lombar)
+  RM_COLUNA: [
+    { codigo: 'COLUNA_PREPARO', enunciado: 'O preparo prévio do exame foi cumprido adequadamente conforme orientação?', impeditivo: false },
+    { codigo: 'COLUNA_MARCAPASSO', enunciado: 'Possui marcapasso cardíaco ou cardioversor-desfibrilador (CDI)?', impeditivo: true },
+    { codigo: 'COLUNA_CLIPE_ANEURISMA', enunciado: 'Possui clipes de aneurisma cerebral ou implantes vasculares metálicos?', impeditivo: true },
+    { codigo: 'COLUNA_IMPLANTE_COCLEAR', enunciado: 'Possui implante coclear ou neuroestimulador implantado?', impeditivo: true },
+    { codigo: 'COLUNA_SINTOMA_DOR_IRRADIADA', enunciado: 'Apresenta dor que se irradia para membros ou perda de força e sensibilidade?', impeditivo: false },
+    { codigo: 'COLUNA_CIRURGIA_PREVIA', enunciado: 'Já realizou cirurgia prévia na coluna ou fixação com placas e parafusos?', impeditivo: false },
+    { codigo: 'COLUNA_TRAUMA', enunciado: 'Sofreu algum trauma recente, queda ou batida na região da coluna?', impeditivo: false },
+    { codigo: 'COLUNA_OSTEOPOROSE', enunciado: 'Possui diagnóstico de osteoporose severa ou osteopenia com risco de fratura?', impeditivo: false },
+    { codigo: 'COLUNA_TUMOR_QUIMIO', enunciado: 'Possui histórico de tumor, quimioterapia ou radioterapia?', impeditivo: false },
+    { codigo: 'COLUNA_CLAUSTROFOBIA', enunciado: 'Apresenta claustrofobia importante ao entrar no aparelho fechado?', impeditivo: false }
+  ],
+
+  // 2. QUESTIONÁRIO PARA RESSONÂNCIA DE BRAÇO / ANTEBRAÇO (Membro Superior)
+  RM_BRACO_ANTEBRACO: [
+    { codigo: 'BRACO_PREPARO', enunciado: 'O preparo prévio do exame foi cumprido adequadamente conforme orientação?', impeditivo: false },
+    { codigo: 'BRACO_MARCAPASSO', enunciado: 'Possui marcapasso cardíaco ou neuroestimulador implantado?', impeditivo: true },
+    { codigo: 'BRACO_CORPO_ESTRANHO_METAL', enunciado: 'Já trabalhou com solda/metal ou teve fragmento metálico ocular?', impeditivo: true },
+    { codigo: 'BRACO_SINTOMAS', enunciado: 'Apresenta alteração de sensibilidade, formigamento, inchaço ou limitação de movimento?', impeditivo: false },
+    { codigo: 'BRACO_ESPORTES', enunciado: 'Pratica esportes ou atividades com movimentos repetitivos de membros superiores?', impeditivo: false },
+    { codigo: 'BRACO_RUPTURA_TENDAO', enunciado: 'Suspeita ou diagnóstico de ruptura / estiramento de tendão ou músculo?', impeditivo: false },
+    { codigo: 'BRACO_TRAUMA_CIRURGIA', enunciado: 'Histórico de trauma, fratura, infecção ou cirurgia prévia no braço/antebraço?', impeditivo: false },
+    { codigo: 'BRACO_CLAUSTROFOBIA', enunciado: 'Apresenta claustrofobia importante ao entrar no aparelho fechado?', impeditivo: false }
+  ],
+
+  // 3. QUESTIONÁRIO PARA RESSONÂNCIA DE BACIA / QUADRIL (Articulações Coxofemorais)
+  RM_BACIA_QUADRIL: [
+    { codigo: 'BACIA_PREPARO', enunciado: 'O preparo prévio do exame foi cumprido adequadamente conforme orientação?', impeditivo: false },
+    { codigo: 'BACIA_MARCAPASSO', enunciado: 'Possui marcapasso cardíaco ou implante metálico ferromagnético?', impeditivo: true },
+    { codigo: 'BACIA_CLIPE_ANEURISMA', enunciado: 'Possui clipes metálicos cerebrais ou prótese incompatível com alto campo?', impeditivo: true },
+    { codigo: 'BACIA_USO_CORTICOIDE', enunciado: 'Fez ou faz uso contínuo de medicamentos corticosteroides (risco de osteonecrose da cabeça femoral)?', impeditivo: false },
+    { codigo: 'BACIA_DOENCA_INFANCIA', enunciado: 'Apresentou doença do quadril durante a infância (Perthes, epifisiólise, displasia)?', impeditivo: false },
+    { codigo: 'BACIA_RUPTURA_TENDAO', enunciado: 'Suspeita de ruptura tendínea glútea, bursite trocantérica ou lesão labral?', impeditivo: false },
+    { codigo: 'BACIA_TRAUMA_CIRURGIA', enunciado: 'Histórico de trauma prévio, queda ou cirurgia no quadril/fêmur?', impeditivo: false },
+    { codigo: 'BACIA_CLAUSTROFOBIA', enunciado: 'Apresenta claustrofobia importante ao entrar no aparelho fechado?', impeditivo: false }
+  ],
+
+  // 4. QUESTIONÁRIOS DE TOMOGRAFIA COMPUTADORIZADA (TC de Tórax e Abdômen)
+  TC_TORAX: [
+    { codigo: 'TC_ALERGIA_IODO', enunciado: 'Histórico prévio de anafilaxia ou choque alérgico grave ao contraste iodado?', impeditivo: true },
+    { codigo: 'TC_INSUFICIENCIA_RENAL', enunciado: 'Diagnóstico prévio de doença renal crônica ou diálise (Creatinina alterada)?', impeditivo: true },
+    { codigo: 'TC_METFORMINA', enunciado: 'Faz uso contínuo de Cloridrato de Metformina?', impeditivo: false },
+    { codigo: 'TC_JEJUM', enunciado: 'Cumpriu o jejum mínimo de 4 horas orientado?', impeditivo: false },
+    { codigo: 'TC_GESTAO', enunciado: 'Possibilidade de gravidez ativa no momento (contraindicação radiológica)?', impeditivo: false }
+  ],
+
+  TC_ABDOMEN: [
+    { codigo: 'TC_ALERGIA_IODO', enunciado: 'Histórico prévio de anafilaxia ou choque alérgico grave ao contraste iodado?', impeditivo: true },
+    { codigo: 'TC_INSUFICIENCIA_RENAL', enunciado: 'Diagnóstico prévio de doença renal crônica ou diálise (Creatinina alterada)?', impeditivo: true },
+    { codigo: 'TC_METFORMINA', enunciado: 'Faz uso contínuo de Cloridrato de Metformina?', impeditivo: false },
+    { codigo: 'TC_JEJUM', enunciado: 'Cumpriu o jejum mínimo de 4 horas orientado?', impeditivo: false },
+    { codigo: 'TC_CIRURGIA_ABDOMINAL', enunciado: 'Histórico de cirurgia abdominal prévia ou dor aguda com suspeita cirúrgica?', impeditivo: false },
+    { codigo: 'TC_GESTAO', enunciado: 'Possibilidade de gravidez ativa no momento (contraindicação radiológica)?', impeditivo: false }
+  ],
+
+  // Fallbacks genéricos
   TC: [
     { codigo: 'TC_ALERGIA_IODO', enunciado: 'Histórico prévio de anafilaxia ou choque alérgico grave ao contraste iodado?', impeditivo: true },
     { codigo: 'TC_INSUFICIENCIA_RENAL', enunciado: 'Diagnóstico prévio de doença renal crônica ou diálise?', impeditivo: true },
@@ -147,11 +228,14 @@ async function verificarConexaoApi() {
   const text = document.getElementById('apiStatusText');
 
   try {
-    const dados = await ApiClient.obterWorklist();
+    const statusBancos = await ApiClient.obterStatusBancos();
     UIState.online = true;
     if (dot) dot.style.background = 'var(--emerald-400)';
-    if (text) text.textContent = 'API .NET Online (MySQL Conectado)';
-    if (pill) pill.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+    if (text) text.textContent = 'API .NET Online (Bancos 1 & 2 Conectados)';
+    if (pill) {
+      pill.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      pill.title = `Banco 1 (Triagem): ${statusBancos.banco1_aplicacao?.provedor} | Banco 2 (Worklist Lab): ${statusBancos.banco2_worklist_lab?.provedor} (${statusBancos.banco2_worklist_lab?.pedidosAgendados} exames)`;
+    }
     return true;
   } catch (err) {
     UIState.online = false;
@@ -312,6 +396,11 @@ async function carregarWorklist() {
         sexo: e.sexo,
         pesoKg: e.pesoKg,
         modalidade: e.modalidadeDescricao || (e.modalidade === 1 ? 'TC' : 'RM'),
+        tipoFormulario: e.tipoFormulario || (e.modalidadeDescricao === 'RM' || e.modalidade === 2 ? 'RM_COLUNA' : 'TC_TORAX'),
+        segmentoLado: e.segmentoLado || null,
+        motivoExame: e.motivoExame || null,
+        medicoSolicitante: e.medicoSolicitante || null,
+        convenio: e.convenio || 'Unimed',
         procedimento: e.descricaoExame || e.procedimento,
         sala: e.sala,
         horario: e.horarioAgendado ? new Date(e.horarioAgendado).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '08:00',
@@ -436,12 +525,19 @@ async function abrirTriagem(exameId) {
   document.getElementById('calcCreatininaInput').value = '';
   recalcularDose();
 
-  // Renderiza checklist da modalidade
-  const perguntas = PROTOCOLOS_CHECKLIST[item.modalidade] || PROTOCOLOS_CHECKLIST.TC;
+  // Renderiza checklist especializado conforme o tipo de formulário do exame
+  const tipoForm = item.tipoFormulario || (item.modalidade === 'TC' ? 'TC_TORAX' : 'RM_COLUNA');
+  const titulosEspecializados = {
+    RM_COLUNA: 'Questionário Clínico: Ressonância da Coluna (Cervical / Torácica / Lombar)',
+    RM_BRACO_ANTEBRACO: 'Questionário Clínico: Ressonância de Braço / Antebraço (Membro Superior)',
+    RM_BACIA_QUADRIL: 'Questionário Clínico: Ressonância de Bacia / Quadril (Articulações Coxofemorais)',
+    TC_TORAX: 'Checklist de Segurança: Tomografia Computadorizada de Tórax (Contraste Iodado)',
+    TC_ABDOMEN: 'Checklist de Segurança: Tomografia Computadorizada de Abdômen Total'
+  };
+
+  const perguntas = PROTOCOLOS_CHECKLIST[tipoForm] || PROTOCOLOS_CHECKLIST[item.modalidade] || PROTOCOLOS_CHECKLIST.TC;
   document.getElementById('checklistProtocoloTitulo').textContent = 
-    item.modalidade === 'TC' 
-      ? 'Checklist de Segurança - Tomografia Computadorizada (TC)' 
-      : 'Checklist de Segurança - Ressonância Magnética (RM)';
+    titulosEspecializados[tipoForm] || `Checklist de Segurança - ${item.modalidade}`;
 
   const container = document.getElementById('checklistItemsContainer');
   container.innerHTML = perguntas.map((p, index) => {
@@ -570,8 +666,18 @@ function initCalculadora() {
   document.getElementById('calcCreatininaInput')?.addEventListener('input', recalcularDose);
 
   document.getElementById('btnSalvarRascunho')?.addEventListener('click', async () => {
-    await persistirTriagem(false);
-    showToast('Ficha de triagem salva no sistema.', 'success');
+    try {
+      const res = await persistirTriagem(false);
+      const caminho = res?.caminhoArquivoArmazenado;
+      if (caminho) {
+        showToast('Ficha de triagem salva e arquivada em Documentos!', 'success');
+        exibirModalArquivoSalvo(caminho);
+      } else {
+        showToast('Ficha de triagem salva no sistema.', 'success');
+      }
+    } catch (err) {
+      showToast(`Erro ao salvar: ${err.message}`, 'error');
+    }
   });
 
   document.getElementById('btnLiberarExame')?.addEventListener('click', async () => {
@@ -581,9 +687,15 @@ function initCalculadora() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processando...';
 
     try {
-      await persistirTriagem(true);
+      const res = await persistirTriagem(true);
       UIState.exameSelecionado.status = 'LIBERADO';
-      showToast(`Exame #${UIState.exameSelecionado.atendimento} liberado com sucesso!`, 'success');
+      const caminho = res?.caminhoArquivoArmazenado;
+      if (caminho) {
+        showToast(`Exame #${UIState.exameSelecionado.atendimento} liberado com sucesso!`, 'success');
+        exibirModalArquivoSalvo(caminho);
+      } else {
+        showToast(`Exame #${UIState.exameSelecionado.atendimento} liberado com sucesso!`, 'success');
+      }
       await carregarWorklist();
       trocarView('view-worklist');
     } catch (err) {
@@ -596,10 +708,10 @@ function initCalculadora() {
 }
 
 async function persistirTriagem(liberar = false) {
-  if (!UIState.exameSelecionado) return;
+  if (!UIState.exameSelecionado) return null;
 
-  const modalidade = UIState.exameSelecionado.modalidade;
-  const perguntas = PROTOCOLOS_CHECKLIST[modalidade] || [];
+  const tipoForm = UIState.exameSelecionado.tipoFormulario || (UIState.exameSelecionado.modalidade === 'TC' ? 'TC_TORAX' : 'RM_COLUNA');
+  const perguntas = PROTOCOLOS_CHECKLIST[tipoForm] || PROTOCOLOS_CHECKLIST[UIState.exameSelecionado.modalidade] || [];
 
   const respostasDto = perguntas.map(p => ({
     codigoPergunta: p.codigo,
@@ -609,23 +721,74 @@ async function persistirTriagem(liberar = false) {
     justificativa: null
   }));
 
+  const obsElem = document.getElementById('txtObservacoesClinicas') || document.getElementById('triagemObservacoes');
+
   const payload = {
     exameId: UIState.exameSelecionado.id,
     usuarioResponsavelId: UIState.usuarioLogado.id || 1,
     pesoKg: parseFloat(document.getElementById('calcPesoInput').value) || UIState.exameSelecionado.pesoKg,
     volumeContrasteMl: parseFloat(document.getElementById('calcDoseResultado').textContent) || null,
     loteContraste: document.getElementById('calcLoteInput')?.value.trim() || null,
-    observacoesClinicas: document.getElementById('triagemObservacoes')?.value.trim() || null,
+    observacoesClinicas: obsElem?.value.trim() || null,
     respostas: respostasDto
   };
 
   // Se a API estiver online, envia o DTO real
   if (UIState.online) {
-    await ApiClient.salvarTriagem(payload);
+    const res = await ApiClient.salvarTriagem(payload);
     if (liberar) {
       await ApiClient.liberarExame(UIState.exameSelecionado.id, UIState.usuarioLogado.id || 1);
     }
+    return res;
   }
+  return null;
+}
+
+function exibirModalArquivoSalvo(caminho) {
+  document.getElementById('savedDocModal')?.remove();
+
+  const container = document.createElement('div');
+  container.id = 'savedDocModal';
+  container.style.position = 'fixed';
+  container.style.inset = '0';
+  container.style.background = 'rgba(15, 23, 42, 0.75)';
+  container.style.backdropFilter = 'blur(6px)';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  container.style.justifyContent = 'center';
+  container.style.zIndex = '9999';
+
+  container.innerHTML = `
+    <div style="background: #0f172a; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 12px; max-width: 620px; width: 90%; padding: 28px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); color: #f8fafc;">
+      <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 16px;">
+        <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(16, 185, 129, 0.2); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+          <i class="fa-solid fa-file-circle-check"></i>
+        </div>
+        <div>
+          <h3 style="font-family: var(--font-title); font-size: 1.25rem; font-weight: 700; color: #fff;">Ficha Clínica Arquivada com Sucesso!</h3>
+          <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 2px;">Documento timbrado oficial gerado e salvo na pasta Documentos do usuário.</p>
+        </div>
+      </div>
+
+      <div style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;">
+        <div style="font-size: 0.75rem; color: #38bdf8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Caminho Gravado no Banco de Dados (caminho_arquivo_armazenado):</div>
+        <div style="font-family: var(--font-mono); font-size: 0.85rem; color: #34d399; word-break: break-all; margin-top: 6px; user-select: all;">
+          ${caminho}
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 12px;">
+        <button type="button" class="btn btn--secondary" onclick="document.getElementById('savedDocModal').remove()">
+          <i class="fa-solid fa-xmark"></i> Fechar
+        </button>
+        <button type="button" class="btn btn--primary" onclick="window.print()">
+          <i class="fa-solid fa-print"></i> Imprimir Laudo
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(container);
 }
 
 function recalcularDose() {
@@ -756,4 +919,118 @@ function showToast(mensagem, tipo = 'info') {
     t.style.opacity = '0';
     setTimeout(() => t.remove(), 300);
   }, 3500);
+}
+
+/* ==============================================================================
+   10. MODAL DO BANCO DE DADOS 2 (WORKLIST DO LABORATÓRIO / HIS-RIS)
+   ============================================================================== */
+async function abrirModalWorklistLab() {
+  document.getElementById('modalBanco2Lab')?.remove();
+
+  const container = document.createElement('div');
+  container.id = 'modalBanco2Lab';
+  container.style.position = 'fixed';
+  container.style.inset = '0';
+  container.style.background = 'rgba(15, 23, 42, 0.8)';
+  container.style.backdropFilter = 'blur(8px)';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  container.style.justifyContent = 'center';
+  container.style.zIndex = '9999';
+
+  container.innerHTML = `
+    <div style="background: var(--bg-card); border: 1px solid var(--bg-card-border); border-radius: 14px; max-width: 900px; width: 95%; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); overflow: hidden;">
+      <div style="padding: 20px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+            <i class="fa-solid fa-server"></i>
+          </div>
+          <div>
+            <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">Banco de Dados 2: Worklist Laboratorial (HIS/RIS)</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">Visualização em tempo real dos agendamentos médicos e formulários clínicos associados.</p>
+          </div>
+        </div>
+        <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalBanco2Lab').remove()" style="padding: 6px 10px;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div style="padding: 20px 24px; overflow-y: auto; flex: 1;" id="modalBanco2Conteudo">
+        <div style="text-align: center; padding: 30px; color: var(--text-muted);">
+          <i class="fa-solid fa-spinner fa-spin"></i> Carregando agendamentos do Banco 2...
+        </div>
+      </div>
+
+      <div style="padding: 14px 24px; border-top: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.7);">
+        <span style="font-size: 0.8rem; color: var(--emerald-400);">
+          <i class="fa-solid fa-circle-check"></i> Conexão ativa com o banco da clínica (worklist_lab.db / MySQL)
+        </span>
+        <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalBanco2Lab').remove()">
+          Fechar
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(container);
+
+  try {
+    const pedidos = await ApiClient.obterWorklistLaboratorio();
+    const lista = Array.isArray(pedidos) ? pedidos : (pedidos.value || []);
+    const div = document.getElementById('modalBanco2Conteudo');
+
+    if (!div) return;
+
+    if (lista.length === 0) {
+      div.innerHTML = '<p style="text-align: center; color: var(--text-muted);">Nenhum pedido agendado no Banco 2.</p>';
+      return;
+    }
+
+    div.innerHTML = `
+      <table class="worklist-table" style="font-size: 0.84rem;">
+        <thead>
+          <tr>
+            <th>Atendimento</th>
+            <th>Paciente &amp; CPF</th>
+            <th>Procedimento</th>
+            <th>Formulário Especializado</th>
+            <th>Região / Lado</th>
+            <th>Médico &amp; Convênio</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lista.map(p => `
+            <tr>
+              <td><span style="font-family: var(--font-mono); font-weight: 700;">#${p.atendimento}</span></td>
+              <td>
+                <div style="font-weight: 600; color: #fff;">${p.paciente}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">CPF: ${p.cpf}</div>
+              </td>
+              <td>
+                <span class="badge-modalidade ${p.modalidade === 'TC' ? 'badge-tc' : 'badge-rm'}" style="margin-right: 6px;">${p.modalidade}</span>
+                ${p.procedimento}
+              </td>
+              <td>
+                <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); color: var(--cyan-400); border: 1px solid rgba(56, 189, 248, 0.3);">
+                  ${p.tipoFormulario}
+                </span>
+              </td>
+              <td><span style="font-weight: 600; color: var(--sky-400);">${p.segmentoLado || 'Geral'}</span></td>
+              <td>
+                <div>${p.medico}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">${p.convenio}</div>
+              </td>
+              <td><span class="badge-status status-aguardando">${p.status}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (err) {
+    const div = document.getElementById('modalBanco2Conteudo');
+    if (div) {
+      div.innerHTML = `<p style="color: var(--coral-400); text-align: center;">Erro ao consultar Banco 2: ${err.message}</p>`;
+    }
+  }
 }
