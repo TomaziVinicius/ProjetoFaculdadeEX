@@ -7,7 +7,7 @@ public static class DbSeeder
 {
     public static void Seed(AppDbContext context)
     {
-        // Se já possui usuários cadastrados, garante que o estagiário também exista e encerra
+        // Se já possui usuários cadastrados, garante estagiário e cenários de teste
         if (context.Usuarios.Any())
         {
             if (!context.Usuarios.Any(u => u.Login.ToLower() == "gabriel.estagio"))
@@ -23,6 +23,8 @@ public static class DbSeeder
                 });
                 context.SaveChanges();
             }
+
+            SeedCenariosErros(context);
             return;
         }
 
@@ -196,6 +198,143 @@ public static class DbSeeder
         };
 
         context.Exames.AddRange(e1, e2, e3, e4);
+        context.SaveChanges();
+
+        SeedCenariosErros(context);
+    }
+
+    private static void SeedCenariosErros(AppDbContext context)
+    {
+        if (context.Exames.Any(e => e.Atendimento == 900501))
+            return;
+
+        var pLiberado = new Paciente
+        {
+            DocumentoCpf = "11122233344",
+            NomeCompleto = "Marcos Roberto (Cenário E9 - Liberado)",
+            DataNascimento = new DateTime(1980, 5, 15),
+            Sexo = "M",
+            PesoKg = 75.0m,
+            AlturaCm = 175,
+            CriadoEm = DateTime.UtcNow
+        };
+
+        var pBloqueado = new Paciente
+        {
+            DocumentoCpf = "22233344455",
+            NomeCompleto = "Clara Meireles (Cenário E10 - Bloqueada)",
+            DataNascimento = new DateTime(1972, 8, 20),
+            Sexo = "F",
+            PesoKg = 62.0m,
+            AlturaCm = 160,
+            CriadoEm = DateTime.UtcNow
+        };
+
+        var pObesoTC = new Paciente
+        {
+            DocumentoCpf = "33344455566",
+            NomeCompleto = "Geraldo Magela (TC 125kg - Teto 150mL)",
+            DataNascimento = new DateTime(1965, 3, 10),
+            Sexo = "M",
+            PesoKg = 125.0m,
+            AlturaCm = 178,
+            CriadoEm = DateTime.UtcNow
+        };
+
+        var pObesoRM = new Paciente
+        {
+            DocumentoCpf = "44455566677",
+            NomeCompleto = "Valdirene Ramos (RM 150kg - Teto 25mL)",
+            DataNascimento = new DateTime(1978, 11, 25),
+            Sexo = "F",
+            PesoKg = 150.0m,
+            AlturaCm = 165,
+            CriadoEm = DateTime.UtcNow
+        };
+
+        context.Pacientes.AddRange(pLiberado, pBloqueado, pObesoTC, pObesoRM);
+        context.SaveChanges();
+
+        var eLiberado = new Exame
+        {
+            PacienteId = pLiberado.Id,
+            Atendimento = 900501,
+            CodigoProcedimento = "41001010",
+            SequenciaInterna = 1,
+            DescricaoExame = "Tomografia Computadorizada de Tórax com Contraste",
+            Modalidade = ModalidadeExame.TC,
+            TipoFormulario = "TC_TORAX",
+            SegmentoLado = "Tórax",
+            MotivoExame = "Controle oncológico anual.",
+            MedicoSolicitante = "Dr. Roberto Silveira (CRM/PR 19850)",
+            Convenio = "Unimed",
+            Sala = "TC-01",
+            HorarioAgendado = DateTime.Today.AddHours(8),
+            HorarioChamada = DateTime.Today.AddHours(8).AddMinutes(10),
+            HorarioExecucao = DateTime.Today.AddHours(8).AddMinutes(25),
+            Status = StatusExame.LIBERADO,
+            CriadoEm = DateTime.UtcNow
+        };
+
+        var eBloqueado = new Exame
+        {
+            PacienteId = pBloqueado.Id,
+            Atendimento = 900502,
+            CodigoProcedimento = "41101022",
+            SequenciaInterna = 1,
+            DescricaoExame = "Ressonância Magnética de Coluna Lombar",
+            Modalidade = ModalidadeExame.RM,
+            TipoFormulario = "RM_COLUNA",
+            SegmentoLado = "Lombar",
+            MotivoExame = "Lombociatalgia crônica refratária com irradiação.",
+            MedicoSolicitante = "Dra. Camila Toledo (CRM/PR 31200)",
+            Convenio = "Bradesco Saúde",
+            Sala = "RM-01",
+            HorarioAgendado = DateTime.Today.AddHours(9),
+            HorarioChamada = DateTime.Today.AddHours(9).AddMinutes(5),
+            Status = StatusExame.BLOQUEADO_SEGURANCA,
+            CriadoEm = DateTime.UtcNow
+        };
+
+        var eObesoTC = new Exame
+        {
+            PacienteId = pObesoTC.Id,
+            Atendimento = 900503,
+            CodigoProcedimento = "41001028",
+            SequenciaInterna = 1,
+            DescricaoExame = "Tomografia de Abdômen Total com Contraste",
+            Modalidade = ModalidadeExame.TC,
+            TipoFormulario = "TC_TORAX",
+            SegmentoLado = "Abdômen",
+            MotivoExame = "Dor abdominal difusa em paciente obeso.",
+            MedicoSolicitante = "Dr. Marcos Valério (CRM/PR 24150)",
+            Convenio = "Unimed",
+            Sala = "TC-02",
+            HorarioAgendado = DateTime.Today.AddHours(11),
+            Status = StatusExame.AGUARDANDO_TRIAGEM,
+            CriadoEm = DateTime.UtcNow
+        };
+
+        var eObesoRM = new Exame
+        {
+            PacienteId = pObesoRM.Id,
+            Atendimento = 900504,
+            CodigoProcedimento = "41101049",
+            SequenciaInterna = 1,
+            DescricaoExame = "Ressonância de Bacia e Articulação do Quadril",
+            Modalidade = ModalidadeExame.RM,
+            TipoFormulario = "RM_BACIA_QUADRIL",
+            SegmentoLado = "Bacia",
+            MotivoExame = "Coxalgia severa progressiva em paciente obesa.",
+            MedicoSolicitante = "Dr. Roberto Silveira (CRM/PR 19850)",
+            Convenio = "Paraná Clínicas",
+            Sala = "RM-02",
+            HorarioAgendado = DateTime.Today.AddHours(14),
+            Status = StatusExame.AGUARDANDO_TRIAGEM,
+            CriadoEm = DateTime.UtcNow
+        };
+
+        context.Exames.AddRange(eLiberado, eBloqueado, eObesoTC, eObesoRM);
         context.SaveChanges();
     }
 }

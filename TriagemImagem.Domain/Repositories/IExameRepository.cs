@@ -14,5 +14,6 @@ public interface IExameRepository
     Task<IEnumerable<Exame>> BuscarAsync(string? termoBusca, DateTime? data = null);
     Task AdicionarAsync(Exame exame);
     Task AtualizarAsync(Exame exame);
+    Task RemoverAsync(Exame exame);
     Task<int> SalvarAlteracoesAsync();
 }

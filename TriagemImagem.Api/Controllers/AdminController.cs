@@ -227,6 +227,239 @@ public class AdminController : ControllerBase
 
         return Ok(new { success = true, totalExamesAtualizados = exames.Count, data = hoje.ToString("yyyy-MM-dd"), message = "Horários dos exames sincronizados para a data de hoje com sucesso." });
     }
+
+    /// <summary>
+    /// Atualiza os dados cadastrais e clínicos de um exame na Worklist.
+    /// </summary>
+    [HttpPut("exames/{id:int}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> EditarExame(int id, [FromBody] EditarExameRequest request)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "O ID do exame deve ser maior que zero." });
+
+        if (string.IsNullOrWhiteSpace(request.PacienteNome))
+            return BadRequest(new { success = false, message = "O nome do paciente é obrigatório." });
+
+        if (request.PesoKg <= 0 || request.PesoKg > 400)
+            return BadRequest(new { success = false, message = "O peso do paciente deve ser válido (entre 1 e 400 kg)." });
+
+        var exame = await _exameRepo.ObterPorIdAsync(id);
+        if (exame == null)
+            return NotFound(new { success = false, message = "Exame não encontrado na base de dados." });
+
+        // Atualiza dados do paciente
+        if (exame.Paciente != null)
+        {
+            exame.Paciente.NomeCompleto = request.PacienteNome.Trim();
+            if (!string.IsNullOrWhiteSpace(request.DocumentoCpf))
+                exame.Paciente.DocumentoCpf = request.DocumentoCpf.Trim();
+            exame.Paciente.PesoKg = request.PesoKg;
+        }
+
+        // Atualiza dados clínicos do exame
+        exame.Modalidade = request.Modalidade;
+        if (!string.IsNullOrWhiteSpace(request.Procedimento))
+            exame.DescricaoExame = request.Procedimento.Trim();
+        if (!string.IsNullOrWhiteSpace(request.SegmentoLado))
+            exame.SegmentoLado = request.SegmentoLado.Trim();
+        if (!string.IsNullOrWhiteSpace(request.TipoFormulario))
+            exame.TipoFormulario = request.TipoFormulario.Trim();
+        if (!string.IsNullOrWhiteSpace(request.Sala))
+            exame.Sala = request.Sala.Trim().ToUpperInvariant();
+
+        if (!string.IsNullOrWhiteSpace(request.Horario) && TimeSpan.TryParse(request.Horario, out var timeSpan))
+        {
+            exame.HorarioAgendado = exame.HorarioAgendado.Date.Add(timeSpan);
+        }
+
+        await _exameRepo.AtualizarAsync(exame);
+        await _exameRepo.SalvarAlteracoesAsync();
+
+        await _auditoriaRepo.RegistrarLogAsync(new AuditoriaLog
+        {
+            ExameId = id,
+            UsuarioId = 1,
+            TipoEvento = "EXAME_EDITADO",
+            Detalhes = $"Exame #{exame.Atendimento} editado pelo Administrador. Paciente: '{exame.Paciente?.NomeCompleto}', Modalidade: {exame.Modalidade}, Sala: {exame.Sala}."
+        });
+
+        return Ok(new { success = true, message = $"Exame #{exame.Atendimento} atualizado com sucesso." });
+    }
+
+    /// <summary>
+    /// Exclui um exame da Worklist e registros associados.
+    /// </summary>
+    [HttpDelete("exames/{id:int}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ExcluirExame(int id)
+    {
+        if (id <= 0)
+            return BadRequest(new { success = false, message = "O ID do exame deve ser maior que zero." });
+
+        var exame = await _exameRepo.ObterPorIdAsync(id);
+        if (exame == null)
+            return NotFound(new { success = false, message = "Exame não encontrado para exclusão." });
+
+        // Remove triagens e respostas vinculadas se existirem
+        var triagem = await _triagemRepo.ObterPorExameIdAsync(id);
+        if (triagem != null)
+        {
+            _context.ItensRespostaTriagem.RemoveRange(triagem.Respostas);
+            _context.FormulariosTriagem.Remove(triagem);
+        }
+
+        await _exameRepo.RemoverAsync(exame);
+        await _exameRepo.SalvarAlteracoesAsync();
+
+        await _auditoriaRepo.RegistrarLogAsync(new AuditoriaLog
+        {
+            ExameId = id,
+            UsuarioId = 1,
+            TipoEvento = "EXAME_EXCLUIDO",
+            Detalhes = $"Exame #{exame.Atendimento} ({exame.DescricaoExame}) do paciente '{exame.Paciente?.NomeCompleto}' excluído permanentemente pelo Administrador."
+        });
+
+        return Ok(new { success = true, message = $"Exame #{exame.Atendimento} excluído com sucesso." });
+    }
+
+    /// <summary>
+    /// Cadastra um novo agendamento de exame na Worklist para realização de testes clínicos.
+    /// </summary>
+    [HttpPost("exames")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CriarExame([FromBody] CriarExameRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.PacienteNome))
+            return BadRequest(new { success = false, message = "O nome do paciente é obrigatório." });
+
+        if (request.PesoKg <= 0 || request.PesoKg > 400)
+            return BadRequest(new { success = false, message = "O peso do paciente deve ser válido (entre 1 e 400 kg)." });
+
+        // Localiza ou cadastra o paciente
+        var cpfLimpo = request.DocumentoCpf?.Replace(".", "").Replace("-", "").Trim();
+        Paciente? paciente = null;
+        if (!string.IsNullOrWhiteSpace(cpfLimpo))
+        {
+            paciente = await _context.Pacientes.FirstOrDefaultAsync(p => p.DocumentoCpf == cpfLimpo);
+        }
+
+        if (paciente == null)
+        {
+            paciente = new Paciente
+            {
+                NomeCompleto = request.PacienteNome.Trim(),
+                DocumentoCpf = string.IsNullOrWhiteSpace(cpfLimpo) ? $"TESTE{DateTime.UtcNow.Ticks % 100000}" : cpfLimpo,
+                PesoKg = request.PesoKg,
+                DataNascimento = DateTime.Today.AddYears(-request.Idade > 0 ? -request.Idade : -35),
+                Sexo = string.IsNullOrWhiteSpace(request.Sexo) ? "M" : request.Sexo.ToUpperInvariant(),
+                CriadoEm = DateTime.UtcNow
+            };
+            await _context.Pacientes.AddAsync(paciente);
+            await _context.SaveChangesAsync();
+        }
+        else
+        {
+            paciente.PesoKg = request.PesoKg;
+        }
+
+        // Próximo número de atendimento
+        var ultimoAtendimento = await _context.Exames.MaxAsync(e => (int?)e.Atendimento) ?? 104525;
+        var novoAtendimento = ultimoAtendimento + 1;
+
+        var horario = DateTime.Today.AddHours(10);
+        if (!string.IsNullOrWhiteSpace(request.Horario) && TimeSpan.TryParse(request.Horario, out var ts))
+        {
+            horario = DateTime.Today.Add(ts);
+        }
+
+        var exame = new Exame
+        {
+            PacienteId = paciente.Id,
+            Atendimento = novoAtendimento,
+            CodigoProcedimento = string.IsNullOrWhiteSpace(request.CodigoProcedimento) ? "41101999" : request.CodigoProcedimento.Trim(),
+            SequenciaInterna = 1,
+            DescricaoExame = string.IsNullOrWhiteSpace(request.Procedimento) ? "Exame de Diagnóstico por Imagem" : request.Procedimento.Trim(),
+            Modalidade = request.Modalidade,
+            TipoFormulario = string.IsNullOrWhiteSpace(request.TipoFormulario) ? (request.Modalidade == ModalidadeExame.TC ? "TC_TORAX" : "RM_COLUNA") : request.TipoFormulario.Trim(),
+            SegmentoLado = string.IsNullOrWhiteSpace(request.SegmentoLado) ? "Padrão" : request.SegmentoLado.Trim(),
+            MotivoExame = string.IsNullOrWhiteSpace(request.MotivoExame) ? "Avaliação clínica de rotina / Teste operacional" : request.MotivoExame.Trim(),
+            MedicoSolicitante = "Dr. Plantonista / Médico Solicitante",
+            Convenio = string.IsNullOrWhiteSpace(request.Convenio) ? "Particular" : request.Convenio.Trim(),
+            Sala = string.IsNullOrWhiteSpace(request.Sala) ? (request.Modalidade == ModalidadeExame.TC ? "TC-01" : "RM-01") : request.Sala.Trim().ToUpperInvariant(),
+            HorarioAgendado = horario,
+            Status = StatusExame.AGUARDANDO_TRIAGEM,
+            CriadoEm = DateTime.UtcNow
+        };
+
+        await _exameRepo.AdicionarAsync(exame);
+        await _exameRepo.SalvarAlteracoesAsync();
+
+        await _auditoriaRepo.RegistrarLogAsync(new AuditoriaLog
+        {
+            ExameId = exame.Id,
+            UsuarioId = 1,
+            TipoEvento = "EXAME_CRIADO",
+            Detalhes = $"Novo agendamento criado: Atendimento #{exame.Atendimento} para o paciente '{paciente.NomeCompleto}' ({exame.Modalidade} - {exame.DescricaoExame}) na sala {exame.Sala}."
+        });
+
+        return CreatedAtAction(nameof(ListarUsuarios), new { id = exame.Id }, new
+        {
+            success = true,
+            message = $"Exame #{exame.Atendimento} cadastrado com sucesso!",
+            exame = new
+            {
+                exame.Id,
+                exame.Atendimento,
+                pacienteNome = paciente.NomeCompleto,
+                documentoCpf = paciente.DocumentoCpf,
+                pesoKg = paciente.PesoKg,
+                modalidade = exame.Modalidade.ToString(),
+                procedimento = exame.DescricaoExame,
+                tipoFormulario = exame.TipoFormulario,
+                segmentoLado = exame.SegmentoLado,
+                sala = exame.Sala,
+                horario = exame.HorarioAgendado.ToString("HH:mm"),
+                status = "AGUARDANDO_TRIAGEM"
+            }
+        });
+    }
+}
+
+public class CriarExameRequest
+{
+    public string PacienteNome { get; set; } = string.Empty;
+    public string? DocumentoCpf { get; set; }
+    public int Idade { get; set; } = 35;
+    public string? Sexo { get; set; } = "M";
+    public decimal PesoKg { get; set; } = 70;
+    public ModalidadeExame Modalidade { get; set; } = ModalidadeExame.RM;
+    public string Procedimento { get; set; } = string.Empty;
+    public string? CodigoProcedimento { get; set; }
+    public string? SegmentoLado { get; set; }
+    public string? TipoFormulario { get; set; }
+    public string? MotivoExame { get; set; }
+    public string? Convenio { get; set; }
+    public string? Sala { get; set; }
+    public string? Horario { get; set; }
+}
+
+public class EditarExameRequest
+{
+    public string PacienteNome { get; set; } = string.Empty;
+    public string? DocumentoCpf { get; set; }
+    public decimal PesoKg { get; set; }
+    public ModalidadeExame Modalidade { get; set; }
+    public string Procedimento { get; set; } = string.Empty;
+    public string? SegmentoLado { get; set; }
+    public string? TipoFormulario { get; set; }
+    public string? Sala { get; set; }
+    public string? Horario { get; set; }
 }
 
 public class CriarUsuarioRequest

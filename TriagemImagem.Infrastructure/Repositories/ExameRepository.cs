@@ -108,6 +108,12 @@ public class ExameRepository : IExameRepository
         return Task.CompletedTask;
     }
 
+    public Task RemoverAsync(Exame exame)
+    {
+        _context.Exames.Remove(exame);
+        return Task.CompletedTask;
+    }
+
     public async Task<int> SalvarAlteracoesAsync()
     {
         return await _context.SaveChangesAsync();

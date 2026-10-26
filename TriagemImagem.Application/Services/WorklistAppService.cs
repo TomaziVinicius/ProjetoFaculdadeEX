@@ -2,6 +2,7 @@ using TriagemImagem.Application.DTOs;
 using TriagemImagem.Application.Interfaces;
 using TriagemImagem.Domain.Entities;
 using TriagemImagem.Domain.Enums;
+using TriagemImagem.Domain.Exceptions;
 using TriagemImagem.Domain.Repositories;
 
 namespace TriagemImagem.Application.Services;
@@ -24,6 +25,21 @@ public class WorklistAppService : IWorklistAppService
 
     public async Task<IEnumerable<ExameWorklistDto>> ObterWorklistAsync(FiltroWorklistDto filtro)
     {
+        if (filtro.Modalidade.HasValue && !Enum.IsDefined(typeof(ModalidadeExame), filtro.Modalidade.Value))
+        {
+            throw new DomainException("Modalidade de exame inválida. Utilize 1 para Tomografia Computadorizada (TC) ou 2 para Ressonância Magnética (RM).");
+        }
+
+        if (filtro.Status.HasValue && !Enum.IsDefined(typeof(StatusExame), filtro.Status.Value))
+        {
+            throw new DomainException("Status de exame inválido. Os valores aceitos são de 1 a 5.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.TermoBusca) && filtro.TermoBusca.Length > 100)
+        {
+            throw new DomainException("O termo de busca não pode exceder 100 caracteres.");
+        }
+
         IEnumerable<Exame> exames;
 
         if (!string.IsNullOrWhiteSpace(filtro.TermoBusca))
@@ -66,6 +82,11 @@ public class WorklistAppService : IWorklistAppService
 
     public async Task<ExameWorklistDto?> ObterExamePorIdAsync(int exameId)
     {
+        if (exameId <= 0)
+        {
+            throw new DomainException("O identificador do exame deve ser um número inteiro positivo maior que zero.");
+        }
+
         var exame = await _exameRepository.ObterPorIdAsync(exameId);
         if (exame == null) return null;
 
@@ -75,8 +96,28 @@ public class WorklistAppService : IWorklistAppService
 
     public async Task<bool> ChamarPacienteAsync(int exameId, int usuarioId)
     {
+        if (exameId <= 0)
+        {
+            throw new DomainException("O identificador do exame deve ser um número inteiro positivo maior que zero.");
+        }
+
+        if (usuarioId <= 0)
+        {
+            throw new DomainException("É obrigatório informar o identificador do operador responsável pela chamada.");
+        }
+
         var exame = await _exameRepository.ObterPorIdAsync(exameId);
         if (exame == null) return false;
+
+        if (exame.Status == StatusExame.LIBERADO || exame.Status == StatusExame.CONCLUIDO)
+        {
+            throw new DomainException($"Não é permitido chamar o paciente pois o exame #{exame.Atendimento} já se encontra finalizado ({exame.Status}).");
+        }
+
+        if (exame.Status == StatusExame.BLOQUEADO_SEGURANCA)
+        {
+            throw new DomainException($"Não é permitido chamar o paciente pois o exame #{exame.Atendimento} foi bloqueado por contraindicação clínica de segurança.");
+        }
 
         exame.HorarioChamada = DateTime.UtcNow;
         if (exame.Status == StatusExame.AGUARDANDO_TRIAGEM)

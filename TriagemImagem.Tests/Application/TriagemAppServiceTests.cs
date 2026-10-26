@@ -24,6 +24,7 @@ public class TriagemAppServiceTests
             Task.FromResult<IEnumerable<Exame>>(ExameArmazenado != null ? new[] { ExameArmazenado } : Array.Empty<Exame>());
         public Task AdicionarAsync(Exame exame) { ExameArmazenado = exame; return Task.CompletedTask; }
         public Task AtualizarAsync(Exame exame) { ExameArmazenado = exame; return Task.CompletedTask; }
+        public Task RemoverAsync(Exame exame) { ExameArmazenado = null; return Task.CompletedTask; }
         public Task<int> SalvarAlteracoesAsync() => Task.FromResult(1);
     }
 

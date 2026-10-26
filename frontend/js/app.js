@@ -87,6 +87,109 @@ const EXAMES_INICIAIS = [
   }
 ];
 
+// Catálogo Central de Informações e Metadados dos Protocolos Anatômicos
+const PROTOCOLOS_CATALOGO_INFO = {
+  RM_COLUNA: {
+    id: 'RM_COLUNA',
+    nome: 'RM Coluna (Cervical / Torácica / Lombar)',
+    modalidade: 'RM',
+    icone: 'fa-bone',
+    corIcone: 'var(--purple-400)',
+    isCustom: false
+  },
+  RM_BRACO_ANTEBRACO: {
+    id: 'RM_BRACO_ANTEBRACO',
+    nome: 'RM Braço / Antebraço (Membro Superior)',
+    modalidade: 'RM',
+    icone: 'fa-hand-dots',
+    corIcone: 'var(--purple-400)',
+    isCustom: false
+  },
+  RM_BACIA_QUADRIL: {
+    id: 'RM_BACIA_QUADRIL',
+    nome: 'RM Bacia / Quadril (Articulação Coxofemoral)',
+    modalidade: 'RM',
+    icone: 'fa-person',
+    corIcone: 'var(--purple-400)',
+    isCustom: false
+  },
+  TC_TORAX: {
+    id: 'TC_TORAX',
+    nome: 'TC Tórax com Contraste Iodado',
+    modalidade: 'TC',
+    icone: 'fa-lungs',
+    corIcone: 'var(--cyan-400)',
+    isCustom: false
+  },
+  TC_ABDOMEN: {
+    id: 'TC_ABDOMEN',
+    nome: 'TC Abdômen Total com Contraste',
+    modalidade: 'TC',
+    icone: 'fa-circle-radiation',
+    corIcone: 'var(--cyan-400)',
+    isCustom: false
+  }
+};
+
+function carregarProtocolosCustomizados() {
+  try {
+    const salvos = JSON.parse(localStorage.getItem('app_protocolos_custom') || '{}');
+    Object.keys(salvos).forEach(key => {
+      const p = salvos[key];
+      PROTOCOLOS_CATALOGO_INFO[key] = {
+        id: p.id,
+        nome: p.nome,
+        modalidade: p.modalidade,
+        icone: p.icone || (p.modalidade === 'TC' ? 'fa-lungs' : 'fa-brain'),
+        corIcone: p.modalidade === 'TC' ? 'var(--cyan-400)' : 'var(--purple-400)',
+        isCustom: true
+      };
+      if (Array.isArray(p.perguntas)) {
+        PROTOCOLOS_CHECKLIST[key] = p.perguntas;
+      }
+      if (p.metadata && typeof METADATA_REGRAS_CLINICAS !== 'undefined') {
+        Object.assign(METADATA_REGRAS_CLINICAS, p.metadata);
+      }
+      if (typeof CATALOGO_PROCEDIMENTOS_FORMULARIO !== 'undefined') {
+        CATALOGO_PROCEDIMENTOS_FORMULARIO[key] = Array.isArray(p.procedimentos) ? p.procedimentos : [];
+      }
+    });
+  } catch (err) {
+    console.warn('Erro ao carregar protocolos customizados do localStorage:', err);
+  }
+}
+
+function salvarProtocolosCustomizadosStorage() {
+  try {
+    const salvos = {};
+    Object.keys(PROTOCOLOS_CATALOGO_INFO).forEach(key => {
+      const item = PROTOCOLOS_CATALOGO_INFO[key];
+      if (item.isCustom) {
+        const metadataMap = {};
+        const perguntas = PROTOCOLOS_CHECKLIST[key] || [];
+        perguntas.forEach(perg => {
+          if (METADATA_REGRAS_CLINICAS[perg.codigo]) {
+            metadataMap[perg.codigo] = METADATA_REGRAS_CLINICAS[perg.codigo];
+          }
+        });
+
+        salvos[key] = {
+          id: item.id,
+          nome: item.nome,
+          modalidade: item.modalidade,
+          icone: item.icone,
+          perguntas: perguntas,
+          metadata: metadataMap,
+          procedimentos: CATALOGO_PROCEDIMENTOS_FORMULARIO[key] || []
+        };
+      }
+    });
+    localStorage.setItem('app_protocolos_custom', JSON.stringify(salvos));
+  } catch (err) {
+    console.warn('Erro ao salvar protocolos customizados no localStorage:', err);
+  }
+}
+
 // Checklists de Segurança Especializados (Centro de Diagnóstico por Imagem - UNICIVE)
 const PROTOCOLOS_CHECKLIST = {
   // 1. QUESTIONÁRIO PARA RESSONÂNCIA DA COLUNA (Cervical / Torácica / Lombar)
@@ -176,6 +279,7 @@ const UIState = {
 
 // Inicialização Geral
 document.addEventListener('DOMContentLoaded', () => {
+  carregarProtocolosCustomizados();
   initTema();
   initAutenticacao();
   initNavegacao();
@@ -1645,10 +1749,111 @@ function initAdminView() {
     showToast('Parâmetros clínicos e tetos institucionais salvos com sucesso!', 'success');
   });
 
+  // Inicialização do Seletor Customizado de Protocolos (Fundo Escuro e Bordas Arredondadas)
+  initCustomSelectProtocolo();
+
   carregarParametrosClinicosForm();
 }
 
+function initCustomSelectProtocolo() {
+  const container = document.getElementById('customSelectProtocolo');
+  const trigger = document.getElementById('customSelectTrigger');
+  const menu = document.getElementById('customSelectMenu');
+  const hiddenSelect = document.getElementById('selectProtocoloAdmin');
+
+  if (!container || !trigger || !menu) return;
+
+  menu.style.display = 'none';
+
+  if (!container.dataset.initialized) {
+    container.dataset.initialized = 'true';
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = container.classList.toggle('is-open');
+      menu.style.display = isOpen ? 'block' : 'none';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) {
+        container.classList.remove('is-open');
+        menu.style.display = 'none';
+      }
+    });
+  }
+
+  atualizarOpcoesSeletorProtocolos(hiddenSelect?.value || 'RM_COLUNA');
+}
+
+function atualizarOpcoesSeletorProtocolos(protocoloSelecionadoId) {
+  const container = document.getElementById('customSelectProtocolo');
+  const menu = document.getElementById('customSelectMenu');
+  const label = document.getElementById('customSelectLabel');
+  const hiddenSelect = document.getElementById('selectProtocoloAdmin');
+  if (!menu || !hiddenSelect) return;
+
+  const currentVal = protocoloSelecionadoId || hiddenSelect.value || 'RM_COLUNA';
+  const protocolos = Object.values(PROTOCOLOS_CATALOGO_INFO);
+
+  // Renderiza opções dinâmicas no menu customizado
+  menu.innerHTML = protocolos.map(p => {
+    const isSel = p.id === currentVal;
+    const badgeCustom = p.isCustom 
+      ? '<span style="font-size: 0.68rem; background: rgba(56,189,248,0.18); color: var(--cyan-400); padding: 1px 6px; border-radius: 4px; margin-left: 6px; font-weight: 700; border: 1px solid rgba(56,189,248,0.3);">CUSTOM</span>' 
+      : '';
+    return `
+      <div class="custom-select-option ${isSel ? 'is-selected' : ''}" data-value="${p.id}">
+        <span><i class="fa-solid ${p.icone}" style="margin-right: 8px; color: ${p.corIcone};"></i> ${p.nome}${badgeCustom}</span>
+        <i class="fa-solid fa-check check-icon" style="color: var(--cyan-400); display: ${isSel ? 'inline-block' : 'none'};"></i>
+      </div>
+    `;
+  }).join('');
+
+  // Atualiza também o native hidden select
+  hiddenSelect.innerHTML = protocolos.map(p => `<option value="${p.id}" ${p.id === currentVal ? 'selected' : ''}>${p.nome}</option>`).join('');
+  hiddenSelect.value = currentVal;
+
+  // Atualiza o label visível
+  const protoAtual = PROTOCOLOS_CATALOGO_INFO[currentVal] || protocolos[0];
+  if (label && protoAtual) {
+    label.innerHTML = `<i class="fa-solid ${protoAtual.icone}" style="color: ${protoAtual.corIcone}; margin-right: 8px;"></i> ${protoAtual.nome}`;
+  }
+
+  // Vincula cliques nas opções
+  menu.querySelectorAll('.custom-select-option').forEach(option => {
+    option.onclick = (e) => {
+      e.stopPropagation();
+      const val = option.getAttribute('data-value');
+      const textSpan = option.querySelector('span');
+
+      menu.querySelectorAll('.custom-select-option').forEach(o => {
+        o.classList.remove('is-selected');
+        const chk = o.querySelector('.check-icon');
+        if (chk) chk.style.display = 'none';
+      });
+
+      option.classList.add('is-selected');
+      const checkIcon = option.querySelector('.check-icon');
+      if (checkIcon) checkIcon.style.display = 'inline-block';
+
+      if (label && textSpan) {
+        label.innerHTML = textSpan.innerHTML;
+      }
+
+      container?.classList.remove('is-open');
+      menu.style.display = 'none';
+
+      if (hiddenSelect) {
+        hiddenSelect.value = val;
+        hiddenSelect.dispatchEvent(new Event('change'));
+      }
+      renderizarDicionarioProtocolos(val);
+    };
+  });
+}
+
 async function carregarAdminView() {
+  initCustomSelectProtocolo();
+
   try {
     const usuarios = await ApiClient.listarUsuariosAdmin();
     renderizarAdminUsuarios(usuarios);
@@ -1669,6 +1874,631 @@ async function carregarAdminView() {
   const countExames = document.getElementById('adminStatExamesTotal');
   if (countExames) countExames.textContent = UIState.exames.length;
   renderizarAdminExames();
+
+  const selectProto = document.getElementById('selectProtocoloAdmin');
+  renderizarDicionarioProtocolos(selectProto?.value || 'RM_COLUNA');
+}
+
+const METADATA_REGRAS_CLINICAS = {
+  // RM Coluna
+  COLUNA_PREPARO: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se NÃO -> Alerta de conferência de preparo',
+    fundamento: 'Garante que o paciente retirou adornos metálicos, próteses móveis e realizou esvaziamento vesical.'
+  },
+  COLUNA_MARCAPASSO: {
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame',
+    fundamento: 'O campo magnético de 1.5T/3.0T induz voltagem nos cabos-eletrodos do marcapasso, com risco de arritmia letal e aquecimento miocárdico.'
+  },
+  COLUNA_CLIPE_ANEURISMA: {
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame',
+    fundamento: 'Clipes ferromagnéticos sofrem torque magnético com força suficiente para lacerar a parede arterial cerebral.'
+  },
+  COLUNA_IMPLANTE_COCLEAR: {
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame',
+    fundamento: 'O ímã interno do implante coclear pode desmagnetizar, deslocar-se cirurgicamente ou sofrer aquecimento por radiofrequência.'
+  },
+  COLUNA_SINTOMA_DOR_IRRADIADA: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Direcionamento do protocolo (cortes axiais focados)',
+    fundamento: 'Identifica radiculopatia por hérnia discal ou estenose de canal para planejamento de sequências T2/STIR.'
+  },
+  COLUNA_CIRURGIA_PREVIA: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Ajuste de banda passante contra artefatos',
+    fundamento: 'Materiais de artrodese (titânio) geram artefatos de suscetibilidade magnética que exigem sequências específicas (WARP/SEMAC).'
+  },
+  COLUNA_TRAUMA: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Prioridade para detecção de edema ósseo',
+    fundamento: 'Orienta sequência STIR/TIRM de alta sensibilidade para fraturas por compressão ou luxação vertebral.'
+  },
+  COLUNA_OSTEOPOROSE: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Cuidado no posicionamento e manuseio',
+    fundamento: 'Mobilização cuidadosa do paciente para evitar fraturas iatrogênicas ao transferir da maca para a mesa.'
+  },
+  COLUNA_TUMOR_QUIMIO: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Indicação de estudo com contraste gadolínio',
+    fundamento: 'Pesquisa de metástases ósseas espinhais e infiltração epidural com realce paramagnético.'
+  },
+  COLUNA_CLAUSTROFOBIA: {
+    tipo: 'ALERTA',
+    gatilho: 'Se SIM -> 🟡 Semáforo Amarelo (Acolhimento / Sedação)',
+    fundamento: 'Exame de coluna exige 25-35 minutos imóvel; claustrofobia severa requer acolhimento, iluminação e suporte anestésico.'
+  },
+
+  // RM Braço
+  BRACO_PREPARO: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se NÃO -> Conferir vestimenta e retirada de metais',
+    fundamento: 'Retirada de anéis, relógios, pulseiras e roupas com zíperes condutores.'
+  },
+  BRACO_MARCAPASSO: {
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame',
+    fundamento: 'Contraindicação absoluta em campo magnético estático elevado.'
+  },
+  BRACO_CORPO_ESTRANHO_METAL: {
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Exige RX de Órbitas',
+    fundamento: 'Soldadores ou operadores de tornos mecânicos com risco de farpas intraoculares que provocam cegueira.'
+  },
+  BRACO_SINTOMAS: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Planejamento do campo de visão (FOV)',
+    fundamento: 'Delimita a extensão da bobina dedicada para o punho, cotovelo ou ombro.'
+  },
+  BRACO_ESPORTES: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Investigação de lesão por sobrecarga',
+    fundamento: 'Suspeita de epicondilite lateral/medial, lesões de bíceps distal ou estiramento ligamentar.'
+  },
+  BRACO_RUPTURA_TENDAO: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Prioridade de protocolo músculo-esquelético',
+    fundamento: 'Sequências de alta resolução espacial para avaliar retração tendínea e atrofia gordurosa.'
+  },
+  BRACO_TRAUMA_CIRURGIA: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Avaliação de consolidação e implantes',
+    fundamento: 'Identifica consolidação viciosa, pseudoartrose ou artefatos metálicos cirúrgicos prévios.'
+  },
+  BRACO_CLAUSTROFOBIA: {
+    tipo: 'ALERTA',
+    gatilho: 'Se SIM -> 🟡 Semáforo Amarelo (Acolhimento)',
+    fundamento: 'Posicionamento ou tubo fechado pode aumentar a ansiedade do paciente.'
+  },
+
+  // RM Bacia/Quadril
+  BACIA_PREPARO: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se NÃO -> Orientação e higienização',
+    fundamento: 'Esvaziamento vesical prévio para evitar artefatos de movimento por repleção urinária.'
+  },
+  BACIA_MARCAPASSO: {
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame',
+    fundamento: 'Contraindicação absoluta ao magneto de alto campo.'
+  },
+  BACIA_CLIPE_ANEURISMA: {
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame',
+    fundamento: 'Risco de torque e sangramento subaracnóideo maciço por deslocamento ferromagnético.'
+  },
+  BACIA_USO_CORTICOIDE: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Investigação de Osteonecrose Avascular',
+    fundamento: 'Corticoterapia prolongada é a causa não-traumática mais frequente de colapso da cabeça do fêmur.'
+  },
+  BACIA_DOENCA_INFANCIA: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Correlação de displasia residual',
+    fundamento: 'Avalia osteoartrite secundária a Legg-Calvé-Perthes ou displasia congênita do quadril.'
+  },
+  BACIA_RUPTURA_TENDAO: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> FOV focado nos tendões glúteos e labrum',
+    fundamento: 'Diferenciação entre bursite trocantérica e lesões de glúteo médio/mínimo (manguito rotador do quadril).'
+  },
+  BACIA_TRAUMA_CIRURGIA: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Avaliação de artroplastia ou fratura oculta',
+    fundamento: 'Detecção de fraturas subcapital femoral incompletas ou afrouxamento asséptico de prótese.'
+  },
+  BACIA_CLAUSTROFOBIA: {
+    tipo: 'ALERTA',
+    gatilho: 'Se SIM -> 🟡 Semáforo Amarelo (Acolhimento)',
+    fundamento: 'O paciente entra com o centro do corpo no isocentro do gantry fechado.'
+  },
+
+  // TC Tórax & Abdômen
+  TC_ALERGIA_IODO: {
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio de Contraste',
+    fundamento: 'Histórico de anafilaxia ao contraste iodado. Exige pré-medicação oral de 12-24h ou cancelamento.'
+  },
+  TC_INSUFICIENCIA_RENAL: {
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio até dosar Creatinina',
+    fundamento: 'Prevenção de Nefropatia Induzida por Contraste (NIC) em pacientes com eGFR < 30 mL/min/1.73m².'
+  },
+  TC_METFORMINA: {
+    tipo: 'ALERTA',
+    gatilho: 'Se SIM -> 🟡 Semáforo Amarelo + Suspensão 48h pós-exame',
+    fundamento: 'Em caso de lesão renal pós-contraste, acúmulo de metformina induz acidose lática potencialmente fatal.'
+  },
+  TC_JEJUM: {
+    tipo: 'ALERTA',
+    gatilho: 'Se NÃO -> 🟡 Semáforo Amarelo + Risco de Êmese',
+    fundamento: 'Contraste iodado hiperosmolar pode provocar náusea súbita; jejum de 4h evita broncoaspiração traqueal.'
+  },
+  TC_GESTAO: {
+    tipo: 'ALERTA',
+    gatilho: 'Se SIM -> 🟡 Semáforo Amarelo + Princípio ALARA / Radiologista',
+    fundamento: 'Radiação ionizante é potencialmente teratogênica, especialmente no 1º trimestre da embriogênese.'
+  },
+  TC_CIRURGIA_ABDOMINAL: {
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Correlação com fios de sutura e pneumoperitônio',
+    fundamento: 'Orienta diagnóstico diferencial entre gás cirúrgico fisiológico e perfuração visceral ativa.'
+  }
+};
+
+// Catálogo de Procedimentos Médicos (TUSS / RIS / HIS) integrados a cada formulário
+const CATALOGO_PROCEDIMENTOS_FORMULARIO = {
+  RM_COLUNA: [
+    { codigoTuss: '41101153', nome: 'RM de Coluna Cervical', regiao: 'Cervical' },
+    { codigoTuss: '41101161', nome: 'RM de Coluna Torácica (Dorsal)', regiao: 'Torácica' },
+    { codigoTuss: '41101170', nome: 'RM de Coluna Lombar / Lombossacra', regiao: 'Lombar' },
+    { codigoTuss: '41101188', nome: 'RM de Articulações Sacroilíacas', regiao: 'Pélvica' }
+  ],
+  RM_BRACO_ANTEBRACO: [
+    { codigoTuss: '41101013', nome: 'RM de Braço / Úmero', regiao: 'Braço' },
+    { codigoTuss: '41101021', nome: 'RM de Cotovelo', regiao: 'Cotovelo' },
+    { codigoTuss: '41101030', nome: 'RM de Antebraço', regiao: 'Antebraço' },
+    { codigoTuss: '41101048', nome: 'RM de Punho', regiao: 'Punho' },
+    { codigoTuss: '41101056', nome: 'RM de Ombro / Manguito Rotador', regiao: 'Ombro' }
+  ],
+  RM_BACIA_QUADRIL: [
+    { codigoTuss: '41101218', nome: 'RM de Bacia / Pelve Óssea', regiao: 'Bacia' },
+    { codigoTuss: '41101226', nome: 'RM de Articulação Coxofemoral (Quadril)', regiao: 'Quadril' },
+    { codigoTuss: '41101234', nome: 'RM de Pelve com Contraste (Próstata / Útero)', regiao: 'Pelve' }
+  ],
+  TC_TORAX: [
+    { codigoTuss: '41001095', nome: 'TC de Tórax com Contraste', regiao: 'Tórax' },
+    { codigoTuss: '41001109', nome: 'TC de Tórax de Alta Resolução (TCAR)', regiao: 'Tórax' },
+    { codigoTuss: '41001117', nome: 'Angiotomografia Arterial de Tórax (TEP / Aorta)', regiao: 'Vascular' }
+  ],
+  TC_ABDOMEN: [
+    { codigoTuss: '41001125', nome: 'TC de Abdômen Total com Contraste', regiao: 'Abdômen' },
+    { codigoTuss: '41001133', nome: 'TC de Abdômen Superior', regiao: 'Abdômen Superior' },
+    { codigoTuss: '41001141', nome: 'TC de Pelve / Pelve e Abdômen', regiao: 'Pelve' },
+    { codigoTuss: '41001150', nome: 'Enterotomografia com Contraste Oral e Venoso', regiao: 'Entérico' }
+  ]
+};
+
+function renderizarDicionarioProtocolos(protocoloId) {
+  const tbody = document.getElementById('adminProtocoloRegrasTableBody');
+  if (!tbody) return;
+
+  const perguntas = PROTOCOLOS_CHECKLIST[protocoloId] || [];
+  const info = PROTOCOLOS_CATALOGO_INFO[protocoloId];
+  const modalidade = (info?.modalidade || (protocoloId.startsWith('TC') ? 'TC' : 'RM')) === 'TC' 
+    ? 'Tomografia Computadorizada (TC)' 
+    : 'Ressonância Magnética (RM)';
+
+  const badgeMod = document.getElementById('protocoloModalidadeBadge');
+  if (badgeMod) badgeMod.textContent = modalidade;
+
+  const btnExcluir = document.getElementById('btnExcluirProtocoloCustom');
+  if (btnExcluir) {
+    if (info && info.isCustom) {
+      btnExcluir.classList.remove('hidden');
+    } else {
+      btnExcluir.classList.add('hidden');
+    }
+  }
+
+  // 1. Procedimentos do Catálogo Integrados
+  const listaProcsContainer = document.getElementById('listaProcedimentosIntegrados');
+  const badgeQtdProcs = document.getElementById('badgeQtdProcedimentos');
+  const procs = CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId] || [];
+
+  if (badgeQtdProcs) {
+    badgeQtdProcs.textContent = `${procs.length} ${procs.length === 1 ? 'Procedimento' : 'Procedimentos'}`;
+  }
+
+  if (listaProcsContainer) {
+    if (procs.length === 0) {
+      listaProcsContainer.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted); padding: 8px;">Nenhum procedimento associado.</div>';
+    } else {
+      listaProcsContainer.innerHTML = procs.map(proc => `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <code style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--cyan-400); background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px;">TUSS ${proc.codigoTuss}</code>
+            <span style="font-size: 0.82rem; font-weight: 500; color: #fff;">${proc.nome}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="badge-status" style="font-size: 0.7rem; background: rgba(255,255,255,0.05); color: var(--text-secondary);">${proc.regiao}</span>
+            <button type="button" title="Editar Procedimento" onclick="adminEditarProcedimento('${protocoloId}', '${proc.codigoTuss}')" style="background: none; border: none; color: var(--cyan-400); cursor: pointer; padding: 2px 5px; font-size: 0.8rem;">
+              <i class="fa-solid fa-pen"></i>
+            </button>
+            <button type="button" title="Desvincular do Formulário" onclick="adminExcluirProcedimento('${protocoloId}', '${proc.codigoTuss}')" style="background: none; border: none; color: var(--coral-400); cursor: pointer; padding: 2px 5px; font-size: 0.8rem;">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // 2. Exames Ativos na Worklist com este Formulário
+  const listaWorklistContainer = document.getElementById('listaWorklistProtocolo');
+  const badgeQtdWorklist = document.getElementById('badgeQtdWorklistProtocolo');
+  const examesNaWorklist = UIState.exames.filter(e => {
+    const formDoExame = e.tipoFormulario || (e.modalidade === 'TC' ? 'TC_TORAX' : 'RM_COLUNA');
+    return formDoExame === protocoloId;
+  });
+
+  if (badgeQtdWorklist) {
+    badgeQtdWorklist.textContent = `${examesNaWorklist.length} ${examesNaWorklist.length === 1 ? 'Paciente' : 'Pacientes'}`;
+  }
+
+  if (listaWorklistContainer) {
+    if (examesNaWorklist.length === 0) {
+      listaWorklistContainer.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted); padding: 8px;"><i class="fa-solid fa-check-circle" style="color: var(--emerald-400); margin-right: 4px;"></i>Nenhum paciente na fila de hoje com este formulário.</div>';
+    } else {
+      listaWorklistContainer.innerHTML = examesNaWorklist.map(ex => {
+        let badgeClass = 'status-aguardando';
+        let label = 'Aguardando';
+        if (ex.status === 'LIBERADO') { badgeClass = 'status-liberado'; label = 'Liberado'; }
+        else if (ex.status === 'BLOQUEADO_SEGURANCA') { badgeClass = 'status-bloqueado'; label = 'Bloqueado'; }
+        else if (ex.status === 'EM_TRIAGEM') { badgeClass = 'status-em-triagem'; label = 'Em Triagem'; }
+
+        return `
+          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--amber-400); font-weight: 700;">#${ex.atendimento}</span>
+              <span style="font-size: 0.82rem; font-weight: 500; color: #fff;">${ex.pacienteNome}</span>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">(${ex.sala} • ${ex.horario})</span>
+            </div>
+            <span class="badge-status ${badgeClass}" style="font-size: 0.7rem;">${label}</span>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // 3. Tabela de Regras Clínicas Individuais
+  let impeditivas = 0;
+  let alertas = 0;
+  let informativas = 0;
+
+  tbody.innerHTML = '';
+
+  perguntas.forEach(p => {
+    const meta = METADATA_REGRAS_CLINICAS[p.codigo] || {
+      tipo: p.impeditivo ? 'IMPEDITIVA' : 'INFORMATIVA',
+      gatilho: p.impeditivo ? 'Se SIM -> 🔴 Bloqueio de Segurança' : 'Critério informativo clínico',
+      fundamento: 'Coleta de dados clínicos para direcionamento técnico do exame.'
+    };
+
+    let badgeClass = 'status-liberado';
+    let labelTipo = '🟢 Normal';
+    if (meta.tipo === 'IMPEDITIVA' || p.impeditivo) {
+      badgeClass = 'status-bloqueado';
+      labelTipo = '🔴 Impeditiva';
+      impeditivas++;
+    } else if (meta.tipo === 'ALERTA') {
+      badgeClass = 'status-aguardando';
+      labelTipo = '🟡 Alerta';
+      alertas++;
+    } else {
+      informativas++;
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><code style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--cyan-400); background: rgba(56,189,248,0.1); padding: 3px 8px; border-radius: 4px;">${p.codigo}</code></td>
+      <td style="font-size: 0.88rem; font-weight: 500; color: #fff;">${p.enunciado}</td>
+      <td><span class="badge-status ${badgeClass}">${labelTipo}</span></td>
+      <td style="font-size: 0.85rem; color: ${meta.tipo === 'IMPEDITIVA' ? 'var(--coral-400)' : meta.tipo === 'ALERTA' ? 'var(--amber-400)' : 'var(--text-secondary)'}; font-weight: 600;">${meta.gatilho}</td>
+      <td style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.4;">${meta.fundamento}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const elImp = document.getElementById('protocoloTotalImpeditivas');
+  const elAlert = document.getElementById('protocoloTotalAlertas');
+  const elInfo = document.getElementById('protocoloTotalInformativas');
+
+  if (elImp) elImp.textContent = `${impeditivas} ${impeditivas === 1 ? 'Pergunta' : 'Perguntas'}`;
+  if (elAlert) elAlert.textContent = `${alertas} ${alertas === 1 ? 'Pergunta' : 'Perguntas'}`;
+  if (elInfo) elInfo.textContent = `${informativas} ${informativas === 1 ? 'Pergunta' : 'Perguntas'}`;
+}
+
+/**
+ * Validador Estrito de Conformidade e Unicidade de Códigos TUSS e RIS
+ * Regra: Obrigatório, formato válido (mín. 4 caracteres) e NÃO REPETIDO no catálogo global
+ */
+function validarCodigoTussERis(codigoTuss, codigoOriginal = null) {
+  if (!codigoTuss || !codigoTuss.trim()) {
+    return { 
+      valido: false, 
+      mensagem: 'O Código TUSS / RIS é estritamente obrigatório.' 
+    };
+  }
+
+  const codLimpo = codigoTuss.trim().toUpperCase();
+
+  if (codLimpo.length < 4) {
+    return { 
+      valido: false, 
+      mensagem: 'O Código TUSS / RIS deve possuir no mínimo 4 caracteres (Ex: 41101014 ou RMCRAN).' 
+    };
+  }
+
+  // Validação de unicidade no catálogo global de procedimentos
+  for (const protoKey of Object.keys(CATALOGO_PROCEDIMENTOS_FORMULARIO)) {
+    const procs = CATALOGO_PROCEDIMENTOS_FORMULARIO[protoKey] || [];
+    for (const proc of procs) {
+      if (proc.codigoTuss && proc.codigoTuss.trim().toUpperCase() === codLimpo) {
+        if (codigoOriginal && codigoOriginal.trim().toUpperCase() === codLimpo) {
+          continue; // Mesma entidade em edição
+        }
+        const nomeProto = PROTOCOLOS_CATALOGO_INFO[protoKey]?.nome || protoKey;
+        return {
+          valido: false,
+          mensagem: `Código TUSS/RIS "${codLimpo}" já cadastrado no exame "${proc.nome}" (Protocolo: ${nomeProto}). Códigos duplicados não são permitidos.`,
+          duplicadoEm: protoKey,
+          procExistente: proc
+        };
+      }
+    }
+  }
+
+  return { valido: true, codigoFormatado: codLimpo };
+}
+
+function adminAbrirVincularProcedimento() {
+  const select = document.getElementById('selectProtocoloAdmin');
+  const protocoloId = select ? select.value : 'RM_COLUNA';
+  adminAbrirModalVincularProcedimento(protocoloId);
+}
+
+function adminAbrirModalVincularProcedimento(protocoloId) {
+  document.getElementById('modalVincularProcAdmin')?.remove();
+
+  const info = PROTOCOLOS_CATALOGO_INFO[protocoloId] || { nome: protocoloId, modalidade: 'RM' };
+
+  const container = document.createElement('div');
+  container.id = 'modalVincularProcAdmin';
+  container.style.position = 'fixed';
+  container.style.inset = '0';
+  container.style.background = 'rgba(10, 14, 23, 0.85)';
+  container.style.backdropFilter = 'blur(10px)';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  container.style.justifyContent = 'center';
+  container.style.zIndex = '9999';
+
+  container.innerHTML = `
+    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 14px; max-width: 540px; width: 95%; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
+      <div style="padding: 16px 20px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">
+            <i class="fa-solid fa-link"></i>
+          </div>
+          <div>
+            <h3 style="font-family: var(--font-title); font-size: 1.1rem; color: #fff;">Associar Exame ao Formulário</h3>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Protocolo: <strong style="color: var(--cyan-400);">${info.nome}</strong></p>
+          </div>
+        </div>
+        <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalVincularProcAdmin').remove()" style="padding: 5px 8px;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="formVincularProcModal" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div class="form-field">
+          <label class="form-label" for="vincularProcCodigo">
+            <i class="fa-solid fa-barcode" style="color: var(--cyan-400);"></i> Código TUSS / RIS (* Obrigatório & Único):
+          </label>
+          <input type="text" id="vincularProcCodigo" class="form-input" placeholder="Ex: 41101999 (TUSS ANS) ou RM_OMBRO (RIS)" required>
+          <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px;">Validação estrita: não são permitidos códigos repetidos em nenhum protocolo.</span>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="vincularProcNome">
+            <i class="fa-solid fa-file-signature" style="color: var(--cyan-400);"></i> Nome do Exame / Procedimento Médico (* Obrigatório):
+          </label>
+          <input type="text" id="vincularProcNome" class="form-input" placeholder="Ex: RM de Ombro com Contraste" required>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="vincularProcRegiao">
+            <i class="fa-solid fa-map-pin" style="color: var(--cyan-400);"></i> Região Anatômica / Segmento (* Obrigatório):
+          </label>
+          <input type="text" id="vincularProcRegiao" class="form-input" placeholder="Ex: Ombro, Mão, Joelho, Crânio" required>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
+          <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalVincularProcAdmin').remove()">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn--primary" id="btnSalvarVincularProc">
+            <i class="fa-solid fa-check"></i> Associar Procedimento
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(container);
+
+  document.getElementById('formVincularProcModal').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const codigoInput = document.getElementById('vincularProcCodigo').value.trim();
+    const nomeInput = document.getElementById('vincularProcNome').value.trim();
+    const regiaoInput = document.getElementById('vincularProcRegiao').value.trim();
+
+    if (!nomeInput) {
+      showToast('O nome do exame/procedimento é obrigatório.', 'error');
+      document.getElementById('vincularProcNome')?.focus();
+      return;
+    }
+    if (!regiaoInput) {
+      showToast('A região anatômica é obrigatória.', 'error');
+      document.getElementById('vincularProcRegiao')?.focus();
+      return;
+    }
+
+    // Validação estrita de unicidade e obrigatoriedade TUSS/RIS
+    const validacao = validarCodigoTussERis(codigoInput);
+    if (!validacao.valido) {
+      showToast(validacao.mensagem, 'error');
+      document.getElementById('vincularProcCodigo')?.focus();
+      return;
+    }
+
+    if (!CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId]) {
+      CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId] = [];
+    }
+
+    CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId].push({
+      codigoTuss: validacao.codigoFormatado,
+      nome: nomeInput,
+      regiao: regiaoInput
+    });
+
+    salvarProtocolosCustomizadosStorage();
+    renderizarDicionarioProtocolos(protocoloId);
+    container.remove();
+    showToast(`Exame "${nomeInput}" (TUSS/RIS ${validacao.codigoFormatado}) associado com sucesso!`, 'success');
+  });
+}
+
+function adminEditarProcedimento(protocoloId, codigoTuss) {
+  const procs = CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId] || [];
+  const proc = procs.find(p => p.codigoTuss === codigoTuss);
+  if (!proc) return;
+
+  document.getElementById('modalEditarProcAdmin')?.remove();
+
+  const container = document.createElement('div');
+  container.id = 'modalEditarProcAdmin';
+  container.style.position = 'fixed';
+  container.style.inset = '0';
+  container.style.background = 'rgba(10, 14, 23, 0.85)';
+  container.style.backdropFilter = 'blur(10px)';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  container.style.justifyContent = 'center';
+  container.style.zIndex = '9999';
+
+  container.innerHTML = `
+    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 14px; max-width: 540px; width: 95%; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
+      <div style="padding: 16px 20px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </div>
+          <div>
+            <h3 style="font-family: var(--font-title); font-size: 1.1rem; color: #fff;">Editar Procedimento do Catálogo</h3>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Atualize o código TUSS/RIS, nome ou região anatômica.</p>
+          </div>
+        </div>
+        <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalEditarProcAdmin').remove()" style="padding: 5px 8px;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="formEditarProcModal" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div class="form-field">
+          <label class="form-label" for="editProcCodigo">
+            <i class="fa-solid fa-barcode" style="color: var(--cyan-400);"></i> Código TUSS / RIS (* Obrigatório & Único):
+          </label>
+          <input type="text" id="editProcCodigo" class="form-input" value="${proc.codigoTuss}" required>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="editProcNome">
+            <i class="fa-solid fa-file-signature" style="color: var(--cyan-400);"></i> Nome do Exame / Procedimento (* Obrigatório):
+          </label>
+          <input type="text" id="editProcNome" class="form-input" value="${proc.nome}" required>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="editProcRegiao">
+            <i class="fa-solid fa-map-pin" style="color: var(--cyan-400);"></i> Região Anatômica (* Obrigatório):
+          </label>
+          <input type="text" id="editProcRegiao" class="form-input" value="${proc.regiao}" required>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
+          <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalEditarProcAdmin').remove()">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn--primary">
+            <i class="fa-solid fa-check"></i> Salvar Alterações
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(container);
+
+  document.getElementById('formEditarProcModal').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const novoCodigo = document.getElementById('editProcCodigo').value.trim();
+    const novoNome = document.getElementById('editProcNome').value.trim();
+    const novaRegiao = document.getElementById('editProcRegiao').value.trim();
+
+    if (!novoNome) {
+      showToast('O nome do exame/procedimento é obrigatório.', 'error');
+      return;
+    }
+    if (!novaRegiao) {
+      showToast('A região anatômica é obrigatória.', 'error');
+      return;
+    }
+
+    // Validação estrita de unicidade permitindo o mesmo código se não foi alterado
+    const validacao = validarCodigoTussERis(novoCodigo, proc.codigoTuss);
+    if (!validacao.valido) {
+      showToast(validacao.mensagem, 'error');
+      document.getElementById('editProcCodigo')?.focus();
+      return;
+    }
+
+    proc.codigoTuss = validacao.codigoFormatado;
+    proc.nome = novoNome;
+    proc.regiao = novaRegiao;
+
+    salvarProtocolosCustomizadosStorage();
+    renderizarDicionarioProtocolos(protocoloId);
+    container.remove();
+    showToast('Procedimento atualizado com sucesso!', 'success');
+  });
+}
+
+function adminExcluirProcedimento(protocoloId, codigoTuss) {
+  const procs = CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId] || [];
+  const proc = procs.find(p => p.codigoTuss === codigoTuss);
+  if (!proc) return;
+
+  if (!confirm(`Deseja desvincular o procedimento "${proc.nome}" (TUSS ${proc.codigoTuss}) deste formulário?`)) return;
+
+  CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId] = procs.filter(p => p.codigoTuss !== codigoTuss);
+  salvarProtocolosCustomizadosStorage();
+  renderizarDicionarioProtocolos(protocoloId);
+  showToast('Procedimento desvinculado com sucesso!', 'success');
 }
 
 function renderizarAdminUsuarios(usuarios) {
@@ -1725,17 +2555,422 @@ function renderizarAdminExames() {
         <td><span style="font-size: 0.85rem;">${item.procedimento}</span></td>
         <td><span style="font-family: var(--font-mono); font-weight: 700; color: var(--cyan-400);">${item.sala}</span></td>
         <td>${statusBadge}</td>
-        <td style="text-align: right;">
-          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; margin-right: 6px;" onclick="adminAlterarSala(${item.id}, '${item.sala}')">
-            <i class="fa-solid fa-door-open"></i> Trocar Sala
+        <td style="text-align: right; white-space: nowrap;">
+          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; margin-right: 4px; border-color: rgba(56, 189, 248, 0.4); color: var(--cyan-400);" onclick="adminAbrirModalEditarExame(${item.id})">
+            <i class="fa-solid fa-pen-to-square"></i> Editar
           </button>
-          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; border-color: rgba(239, 68, 68, 0.3); color: #f87171;" onclick="adminResetStatusExame(${item.id})">
-            <i class="fa-solid fa-rotate-left"></i> Resetar p/ Aguardando
+          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; margin-right: 4px;" onclick="adminAlterarSala(${item.id}, '${item.sala}')">
+            <i class="fa-solid fa-door-open"></i> Sala
+          </button>
+          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; margin-right: 4px; border-color: rgba(245, 158, 11, 0.3); color: var(--amber-400);" onclick="adminResetStatusExame(${item.id})">
+            <i class="fa-solid fa-rotate-left"></i> Resetar
+          </button>
+          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="adminExcluirExame(${item.id})">
+            <i class="fa-solid fa-trash-can"></i> Excluir
           </button>
         </td>
       </tr>
     `;
   }).join('');
+}
+
+function adminAbrirModalEditarExame(exameId) {
+  document.getElementById('modalEditarExameAdmin')?.remove();
+
+  const item = UIState.exames.find(e => e.id === exameId);
+  if (!item) {
+    showToast('Exame não encontrado.', 'error');
+    return;
+  }
+
+  const container = document.createElement('div');
+  container.id = 'modalEditarExameAdmin';
+  container.style.position = 'fixed';
+  container.style.inset = '0';
+  container.style.background = 'rgba(10, 14, 23, 0.85)';
+  container.style.backdropFilter = 'blur(10px)';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  container.style.justifyContent = 'center';
+  container.style.zIndex = '9999';
+
+  container.innerHTML = `
+    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 680px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
+      <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </div>
+          <div>
+            <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">Editar Dados do Exame #${item.atendimento}</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Atualize dados cadastrais, clínicos ou formulário de triagem associado.</p>
+          </div>
+        </div>
+        <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalEditarExameAdmin').remove()" style="padding: 6px 10px;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="formEditarExameModal" style="padding: 22px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
+          <div class="form-field">
+            <label class="form-label" for="editExameNome">Nome do Paciente:</label>
+            <input type="text" id="editExameNome" class="form-input" value="${item.pacienteNome || ''}" required>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="editExameCpf">CPF do Paciente:</label>
+            <input type="text" id="editExameCpf" class="form-input" value="${item.documentoCpf || ''}">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;">
+          <div class="form-field">
+            <label class="form-label" for="editExamePeso">Peso (Kg):</label>
+            <input type="number" step="0.1" id="editExamePeso" class="form-input" value="${item.pesoKg || 70}" required>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="editExameModalidade">Modalidade:</label>
+            <select id="editExameModalidade" class="form-input" style="cursor: pointer;">
+              <option value="RM" ${item.modalidade === 'RM' ? 'selected' : ''}>Ressonância (RM)</option>
+              <option value="TC" ${item.modalidade === 'TC' ? 'selected' : ''}>Tomografia (TC)</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="editExameSala">Sala Operacional:</label>
+            <input type="text" id="editExameSala" class="form-input" value="${item.sala || 'RM-01'}" required>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="editExameProcedimento">Descrição do Procedimento:</label>
+          <input type="text" id="editExameProcedimento" class="form-input" value="${item.procedimento || ''}" required>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div class="form-field">
+            <label class="form-label" for="editExameSegmento">Segmento / Lateralidade:</label>
+            <input type="text" id="editExameSegmento" class="form-input" value="${item.segmentoLado || ''}" placeholder="Ex: Lombar, Direito, Tórax">
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="editExameHorario">Horário Agendado:</label>
+            <input type="text" id="editExameHorario" class="form-input" value="${item.horario || '08:00'}" placeholder="HH:mm">
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="editExameTipoFormulario">
+            <i class="fa-solid fa-file-waveform" style="color: var(--cyan-400);"></i> Formulário / Checklist de Triagem:
+          </label>
+          <select id="editExameTipoFormulario" class="form-input" style="cursor: pointer;">
+            ${Object.values(PROTOCOLOS_CATALOGO_INFO).map(p => `
+              <option value="${p.id}" ${item.tipoFormulario === p.id ? 'selected' : ''}>${p.nome}</option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);">
+          <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalEditarExameAdmin').remove()">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn--primary" id="btnSalvarEdicaoExame">
+            <i class="fa-solid fa-check"></i> Salvar Alterações
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(container);
+
+  document.getElementById('formEditarExameModal').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnSalvarEdicaoExame');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
+
+    const novoNome = document.getElementById('editExameNome').value.trim();
+    const novoCpf = document.getElementById('editExameCpf').value.trim();
+    const novoPeso = parseFloat(document.getElementById('editExamePeso').value) || item.pesoKg;
+    const novaMod = document.getElementById('editExameModalidade').value;
+    const novoProc = document.getElementById('editExameProcedimento').value.trim();
+    const novoSeg = document.getElementById('editExameSegmento').value.trim();
+    const novaSala = document.getElementById('editExameSala').value.trim();
+    const novoForm = document.getElementById('editExameTipoFormulario').value;
+    const novoHorario = document.getElementById('editExameHorario').value.trim();
+
+    const payload = {
+      pacienteNome: novoNome,
+      documentoCpf: novoCpf,
+      pesoKg: novoPeso,
+      modalidade: novaMod === 'TC' ? 1 : 2,
+      procedimento: novoProc,
+      segmentoLado: novoSeg,
+      tipoFormulario: novoForm,
+      sala: novaSala,
+      horario: novoHorario
+    };
+
+    try {
+      if (UIState.online) {
+        await ApiClient.editarExameAdmin(item.id, payload);
+      }
+      // Atualiza localmente
+      item.pacienteNome = novoNome;
+      item.documentoCpf = novoCpf;
+      item.pesoKg = novoPeso;
+      item.modalidade = novaMod;
+      item.procedimento = novoProc;
+      item.segmentoLado = novoSeg;
+      item.tipoFormulario = novoForm;
+      item.sala = novaSala;
+      item.horario = novoHorario;
+
+      showToast(`Exame #${item.atendimento} atualizado com sucesso!`, 'success');
+      container.remove();
+      renderizarAdminExames();
+      carregarWorklist();
+      const selProto = document.getElementById('selectProtocoloAdmin');
+      if (selProto) renderizarDicionarioProtocolos(selProto.value);
+    } catch (err) {
+      showToast(`Erro ao editar exame: ${err.message}`, 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> Salvar Alterações';
+    }
+  });
+}
+
+async function adminExcluirExame(exameId) {
+  const item = UIState.exames.find(e => e.id === exameId);
+  if (!item) return;
+
+  const confirmar = confirm(`Tem certeza que deseja EXCLUIR permanentemente o exame #${item.atendimento} do paciente ${item.pacienteNome}?\n\nEsta ação removerá o agendamento da Worklist.`);
+  if (!confirmar) return;
+
+  try {
+    if (UIState.online) {
+      await ApiClient.excluirExameAdmin(exameId);
+    }
+    UIState.exames = UIState.exames.filter(e => e.id !== exameId);
+    showToast(`Exame #${item.atendimento} excluído com sucesso!`, 'success');
+    renderizarAdminExames();
+    carregarWorklist();
+    const selProto = document.getElementById('selectProtocoloAdmin');
+    if (selProto) renderizarDicionarioProtocolos(selProto.value);
+  } catch (err) {
+    showToast(`Erro ao excluir exame: ${err.message}`, 'error');
+  }
+}
+
+function adminAbrirModalNovoExame() {
+  document.getElementById('modalNovoExameAdmin')?.remove();
+
+  const container = document.createElement('div');
+  container.id = 'modalNovoExameAdmin';
+  container.style.position = 'fixed';
+  container.style.inset = '0';
+  container.style.background = 'rgba(10, 14, 23, 0.85)';
+  container.style.backdropFilter = 'blur(10px)';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  container.style.justifyContent = 'center';
+  container.style.zIndex = '9999';
+
+  container.innerHTML = `
+    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 680px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
+      <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">
+            <i class="fa-solid fa-calendar-plus"></i>
+          </div>
+          <div>
+            <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">Novo Agendamento de Exame (Teste Clínico)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Cadastre um novo paciente na grade para testar triagem, semáforo e contraste.</p>
+          </div>
+        </div>
+        <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalNovoExameAdmin').remove()" style="padding: 6px 10px;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="formNovoExameModal" style="padding: 22px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
+          <div class="form-field">
+            <label class="form-label" for="novoExameNome">Nome Completo do Paciente:</label>
+            <input type="text" id="novoExameNome" class="form-input" placeholder="Ex: Roberto Alencar da Silva" required>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="novoExameCpf">CPF do Paciente:</label>
+            <input type="text" id="novoExameCpf" class="form-input" placeholder="000.000.000-00">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px;">
+          <div class="form-field">
+            <label class="form-label" for="novoExameIdade">Idade:</label>
+            <input type="number" id="novoExameIdade" class="form-input" value="42" required>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="novoExameSexo">Sexo:</label>
+            <select id="novoExameSexo" class="form-input" style="cursor: pointer;">
+              <option value="M">Masculino</option>
+              <option value="F">Feminino</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="novoExamePeso">Peso (Kg):</label>
+            <input type="number" step="0.1" id="novoExamePeso" class="form-input" value="75.0" required>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="novoExameModalidade">Modalidade:</label>
+            <select id="novoExameModalidade" class="form-input" style="cursor: pointer;" onchange="adminAtualizarFormulariosModalNovo(this.value)">
+              <option value="RM">Ressonância (RM)</option>
+              <option value="TC">Tomografia (TC)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="novoExameProcedimento">Descrição do Procedimento / Exame:</label>
+          <input type="text" id="novoExameProcedimento" class="form-input" value="Ressonância Magnética de Coluna Lombar" required>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;">
+          <div class="form-field">
+            <label class="form-label" for="novoExameSegmento">Segmento / Região:</label>
+            <input type="text" id="novoExameSegmento" class="form-input" value="Lombar" placeholder="Ex: Tórax, Lombar, Braço">
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="novoExameSala">Sala Operacional:</label>
+            <input type="text" id="novoExameSala" class="form-input" value="RM-01" required>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="novoExameHorario">Horário:</label>
+            <input type="text" id="novoExameHorario" class="form-input" value="11:30" placeholder="HH:mm">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 14px;">
+          <div class="form-field">
+            <label class="form-label" for="novoExameCodigoTuss">
+              <i class="fa-solid fa-barcode" style="color: var(--cyan-400);"></i> Código TUSS / RIS (* Obrigatório):
+            </label>
+            <input type="text" id="novoExameCodigoTuss" class="form-input" value="41101170" placeholder="Ex: 41101170 ou 41001095" required>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="novoExameTipoFormulario">
+              <i class="fa-solid fa-file-waveform" style="color: var(--cyan-400);"></i> Formulário / Checklist de Triagem:
+            </label>
+            <select id="novoExameTipoFormulario" class="form-input" style="cursor: pointer;">
+              ${Object.values(PROTOCOLOS_CATALOGO_INFO).filter(p => p.modalidade === 'RM').map(p => `
+                <option value="${p.id}">${p.nome}</option>
+              `).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);">
+          <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalNovoExameAdmin').remove()">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn--primary" id="btnSalvarNovoExame">
+            <i class="fa-solid fa-check"></i> Agendar Exame
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(container);
+
+  document.getElementById('formNovoExameModal').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnSalvarNovoExame');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Agendando...';
+
+    const modalidade = document.getElementById('novoExameModalidade').value;
+    const codigoTussVal = document.getElementById('novoExameCodigoTuss')?.value.trim();
+
+    if (!codigoTussVal) {
+      showToast('O código TUSS/RIS do procedimento é obrigatório.', 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> Agendar Exame';
+      document.getElementById('novoExameCodigoTuss')?.focus();
+      return;
+    }
+
+    const payload = {
+      pacienteNome: document.getElementById('novoExameNome').value.trim(),
+      documentoCpf: document.getElementById('novoExameCpf').value.trim(),
+      idade: parseInt(document.getElementById('novoExameIdade').value) || 35,
+      sexo: document.getElementById('novoExameSexo').value,
+      pesoKg: parseFloat(document.getElementById('novoExamePeso').value) || 70,
+      modalidade: modalidade === 'TC' ? 1 : 2,
+      codigoProcedimento: codigoTussVal,
+      procedimento: document.getElementById('novoExameProcedimento').value.trim(),
+      segmentoLado: document.getElementById('novoExameSegmento').value.trim(),
+      sala: document.getElementById('novoExameSala').value.trim(),
+      tipoFormulario: document.getElementById('novoExameTipoFormulario').value,
+      horario: document.getElementById('novoExameHorario').value.trim()
+    };
+
+    try {
+      let novoExameObj;
+      if (UIState.online) {
+        const res = await ApiClient.criarExameAdmin(payload);
+        novoExameObj = res.exame;
+      }
+
+      if (!novoExameObj) {
+        novoExameObj = {
+          id: Date.now(),
+          atendimento: 104500 + UIState.exames.length + 1,
+          pacienteNome: payload.pacienteNome,
+          documentoCpf: payload.documentoCpf,
+          pesoKg: payload.pesoKg,
+          modalidade: modalidade,
+          procedimento: payload.procedimento,
+          segmentoLado: payload.segmentoLado,
+          sala: payload.sala,
+          tipoFormulario: payload.tipoFormulario,
+          horario: payload.horario,
+          status: 'AGUARDANDO_TRIAGEM'
+        };
+      }
+
+      UIState.exames.unshift(novoExameObj);
+      showToast(`Exame #${novoExameObj.atendimento} agendado com sucesso!`, 'success');
+      container.remove();
+      renderizarAdminExames();
+      carregarWorklist();
+      const selProto = document.getElementById('selectProtocoloAdmin');
+      if (selProto) renderizarDicionarioProtocolos(selProto.value);
+    } catch (err) {
+      showToast(`Erro ao criar exame: ${err.message}`, 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> Agendar Exame';
+    }
+  });
+}
+
+function adminAtualizarFormulariosModalNovo(modalidade) {
+  const sel = document.getElementById('novoExameTipoFormulario');
+  const sala = document.getElementById('novoExameSala');
+  const proc = document.getElementById('novoExameProcedimento');
+  if (!sel) return;
+
+  const opcoes = Object.values(PROTOCOLOS_CATALOGO_INFO).filter(p => p.modalidade === modalidade);
+  sel.innerHTML = opcoes.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+
+  if (modalidade === 'TC') {
+    sel.value = opcoes.some(o => o.id === 'TC_TORAX') ? 'TC_TORAX' : (opcoes[0]?.id || 'TC_TORAX');
+    if (sala && sala.value.startsWith('RM')) sala.value = 'TC-01';
+    if (proc && proc.value.includes('Ressonância')) proc.value = 'Tomografia Computadorizada de Tórax com Contraste';
+  } else {
+    sel.value = opcoes.some(o => o.id === 'RM_COLUNA') ? 'RM_COLUNA' : (opcoes[0]?.id || 'RM_COLUNA');
+    if (sala && sala.value.startsWith('TC')) sala.value = 'RM-01';
+    if (proc && proc.value.includes('Tomografia')) proc.value = 'Ressonância Magnética de Coluna Lombar';
+  }
 }
 
 async function adminToggleStatusUsuario(id) {
@@ -1910,3 +3145,553 @@ function exportarCsvAuditoria(logs) {
   link.remove();
 }
 
+/* ==============================================================================
+   12. GESTÃO DINÂMICA DE PROTOCOLOS ANATÔMICOS (PAINEL ADMINISTRATIVO)
+   ============================================================================== */
+
+const PERGUNTAS_PADRAO_RM = [
+  {
+    codigoSufixo: 'MARCAPASSO',
+    enunciado: 'Possui marcapasso cardíaco ou cardioversor-desfibrilador (CDI)?',
+    impeditivo: true,
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame',
+    fundamento: 'Indução de corrente e arritmia letal em campo magnético estático.'
+  },
+  {
+    codigoSufixo: 'CLIPE_ANEURISMA',
+    enunciado: 'Possui clipes de aneurisma cerebral ou implantes vasculares metálicos?',
+    impeditivo: true,
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame',
+    fundamento: 'Torque magnético sobre clipe com risco de laceração vascular e hemorragia.'
+  },
+  {
+    codigoSufixo: 'IMPLANTE_COCLEAR',
+    enunciado: 'Possui implante coclear ou neuroestimulador implantado?',
+    impeditivo: true,
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame',
+    fundamento: 'Desmagnetização do ímã interno e aquecimento por radiofrequência.'
+  },
+  {
+    codigoSufixo: 'CORPO_ESTRANHO_OLHO',
+    enunciado: 'Já trabalhou com solda/metal ou teve fragmento metálico ocular?',
+    impeditivo: true,
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Exige RX de Órbitas',
+    fundamento: 'Deslocamento de farpas ferromagnéticas intraoculares com perda visual.'
+  },
+  {
+    codigoSufixo: 'CLAUSTROFOBIA',
+    enunciado: 'Apresenta claustrofobia importante ao entrar no aparelho fechado?',
+    impeditivo: false,
+    tipo: 'ALERTA',
+    gatilho: 'Se SIM -> 🟡 Semáforo Amarelo (Acolhimento / Sedação)',
+    fundamento: 'Exige acolhimento, iluminação amena ou avaliação anestésica.'
+  },
+  {
+    codigoSufixo: 'PROTESE_METALICA',
+    enunciado: 'Possui próteses metálicas, pinos ou placas cirúrgicas na região?',
+    impeditivo: false,
+    tipo: 'INFORMATIVA',
+    gatilho: 'Se SIM -> Sequências WARP/SEMAC para redução de artefatos',
+    fundamento: 'Ajuste de banda passante contra distorções de suscetibilidade magnética.'
+  }
+];
+
+const PERGUNTAS_PADRAO_TC = [
+  {
+    codigoSufixo: 'ALERGIA_IODO',
+    enunciado: 'Histórico prévio de anafilaxia ou choque alérgico grave ao contraste iodado?',
+    impeditivo: true,
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio de Contraste',
+    fundamento: 'Risco de reação anafilactoide severa sem protocolo prévio de dessensibilização.'
+  },
+  {
+    codigoSufixo: 'INSUFICIENCIA_RENAL',
+    enunciado: 'Diagnóstico prévio de doença renal crônica ou diálise (Creatinina alterada)?',
+    impeditivo: true,
+    tipo: 'IMPEDITIVA',
+    gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio até dosar Creatinina',
+    fundamento: 'Prevenção de Nefropatia Induzida por Contraste (NIC) se eGFR < 30 mL/min.'
+  },
+  {
+    codigoSufixo: 'METFORMINA',
+    enunciado: 'Faz uso contínuo de Cloridrato de Metformina?',
+    impeditivo: false,
+    tipo: 'ALERTA',
+    gatilho: 'Se SIM -> 🟡 Semáforo Amarelo + Suspensão 48h pós-exame',
+    fundamento: 'Prevenção de acidose lática potencialmente fatal em caso de perda renal transitória.'
+  },
+  {
+    codigoSufixo: 'JEJUM',
+    enunciado: 'Cumpriu o jejum mínimo de 4 horas orientado?',
+    impeditivo: false,
+    tipo: 'ALERTA',
+    gatilho: 'Se NÃO -> 🟡 Semáforo Amarelo + Risco de Êmese',
+    fundamento: 'Contraste iodado hiperosmolar pode provocar náusea súbita e broncoaspiração.'
+  },
+  {
+    codigoSufixo: 'GESTAO',
+    enunciado: 'Possibilidade de gravidez ativa no momento (exposição à radiação)?',
+    impeditivo: false,
+    tipo: 'ALERTA',
+    gatilho: 'Se SIM -> 🟡 Semáforo Amarelo + Princípio ALARA',
+    fundamento: 'Radiação ionizante é potencialmente teratogênica, em especial no 1º trimestre.'
+  }
+];
+
+function adminAbrirModalNovoProtocolo() {
+  document.getElementById('modalNovoProtocoloAdmin')?.remove();
+
+  const container = document.createElement('div');
+  container.id = 'modalNovoProtocoloAdmin';
+  container.style.position = 'fixed';
+  container.style.inset = '0';
+  container.style.background = 'rgba(10, 14, 23, 0.88)';
+  container.style.backdropFilter = 'blur(12px)';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  container.style.justifyContent = 'center';
+  container.style.zIndex = '9999';
+
+  container.innerHTML = `
+    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 820px; width: 95%; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
+      <!-- Cabeçalho -->
+      <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+            <i class="fa-solid fa-folder-plus"></i>
+          </div>
+          <div>
+            <h3 style="font-family: var(--font-title); font-size: 1.2rem; color: #fff;">Novo Protocolo Anatômico & Regras Clínicas</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">Cadastre uma região inédita (ex: Crânio, Joelho, Face), defina seu checklist e vincule procedimentos TUSS.</p>
+          </div>
+        </div>
+        <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalNovoProtocoloAdmin').remove()" style="padding: 6px 10px;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Formulário com Scroll -->
+      <form id="formNovoProtocoloModal" style="padding: 22px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px;">
+        
+        <!-- 1. Identificação Geral -->
+        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="font-size: 0.88rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-tag" style="color: var(--cyan-400);"></i> 1. Identificação do Protocolo
+          </div>
+
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
+            <div class="form-field">
+              <label class="form-label" for="novoProtoNome">Nome do Protocolo Anatômico:</label>
+              <input type="text" id="novoProtoNome" class="form-input" placeholder="Ex: RM Crânio / Encéfalo (Neurológico)" required>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="novoProtoCodigo">Código Identificador (ID):</label>
+              <input type="text" id="novoProtoCodigo" class="form-input" placeholder="Ex: RM_CRANIO" style="font-family: var(--font-mono); text-transform: uppercase;" required>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <div class="form-field">
+              <label class="form-label" for="novoProtoModalidade">Modalidade Base:</label>
+              <select id="novoProtoModalidade" class="form-input" style="cursor: pointer;">
+                <option value="RM">Ressonância Magnética (RM)</option>
+                <option value="TC">Tomografia Computadorizada (TC)</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="novoProtoIcone">Ícone Visual:</label>
+              <select id="novoProtoIcone" class="form-input" style="cursor: pointer;">
+                <option value="fa-brain">🧠 Cérebro / Crânio (Neurologia)</option>
+                <option value="fa-bone">🦴 Ossos / Articulações / Joelho</option>
+                <option value="fa-hand-dots">✋ Membro Superior (Punho / Cotovelo / Ombro)</option>
+                <option value="fa-person">🚶 Membro Inferior / Bacia / Perna</option>
+                <option value="fa-lungs">🫁 Tórax / Pulmão / Mediastino</option>
+                <option value="fa-circle-radiation">☢️ Abdômen / Pelve Total</option>
+                <option value="fa-heart-pulse">❤️ Cardíaco / Vascular / Angio</option>
+                <option value="fa-eye">👁️ Órbitas / Face / Mandíbula</option>
+                <option value="fa-ear-listen">👂 Ouvido / Mastoides</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Checklist Base de Segurança da Modalidade -->
+        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="font-size: 0.88rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
+              <i class="fa-solid fa-shield-halved" style="color: var(--emerald-400);"></i> 2. Regras de Segurança Universal (Modalidade)
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Recomendado manter todas ativas para proteção do paciente</span>
+          </div>
+          <div id="containerPerguntasBaseModal" style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- Renderizado dinamicamente de acordo com a modalidade selecionada -->
+          </div>
+        </div>
+
+        <!-- 3. Perguntas Específicas da Região Anatômica -->
+        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <div style="font-size: 0.88rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-clipboard-question" style="color: var(--cyan-400);"></i> 3. Perguntas Especializadas da Região Anatômica
+              </div>
+              <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Adicione critérios específicos desta anatomia (ex: válvula DVP no crânio, lesão de menisco no joelho).</p>
+            </div>
+            <button type="button" class="btn btn--secondary" id="btnAdicionarPerguntaEspecifica" style="font-size: 0.8rem; padding: 5px 12px; border-color: rgba(56, 189, 248, 0.4); color: var(--cyan-400);">
+              <i class="fa-solid fa-plus" style="margin-right: 4px;"></i> Adicionar Pergunta
+            </button>
+          </div>
+
+          <div id="containerPerguntasEspecificas" style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Linhas de perguntas dinâmicas adicionadas aqui -->
+          </div>
+        </div>
+
+        <!-- 4. Procedimento TUSS / RIS Integrado (* Obrigatório & Único) -->
+        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px;">
+          <div style="font-size: 0.88rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <i class="fa-solid fa-list-check" style="color: var(--amber-400);"></i> 4. Procedimento TUSS / RIS Integrado (* Obrigatório &amp; Não Repetido)
+          </div>
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px;">
+            Todo protocolo requer obrigatoriamente um código TUSS (8 dígitos) ou RIS válido e não repetido no catálogo.
+          </p>
+
+          <div style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 12px;">
+            <div class="form-field">
+              <label class="form-label" for="novoProtoTussCodigo">Código TUSS / RIS (* Obrigatório):</label>
+              <input type="text" id="novoProtoTussCodigo" class="form-input" placeholder="Ex: 41101014 ou RMCRAN" required>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="novoProtoTussNome">Nome do Procedimento Médico (* Obrigatório):</label>
+              <input type="text" id="novoProtoTussNome" class="form-input" placeholder="Ex: RM de Crânio / Encéfalo com Contraste" required>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="novoProtoTussRegiao">Região Anatômica (* Obrigatório):</label>
+              <input type="text" id="novoProtoTussRegiao" class="form-input" placeholder="Ex: Crânio" required>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rodapé e Ações -->
+        <div style="display: flex; justify-content: flex-end; gap: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
+          <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalNovoProtocoloAdmin').remove()">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn--primary" id="btnSalvarNovoProtocolo" style="padding: 8px 20px;">
+            <i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(container);
+
+  // Renderiza perguntas base iniciais
+  const renderizarPerguntasBase = (modalidade) => {
+    const containerBase = document.getElementById('containerPerguntasBaseModal');
+    if (!containerBase) return;
+    const lista = modalidade === 'TC' ? PERGUNTAS_PADRAO_TC : PERGUNTAS_PADRAO_RM;
+
+    containerBase.innerHTML = lista.map((p, idx) => {
+      const badgeClass = p.tipo === 'IMPEDITIVA' ? 'status-bloqueado' : (p.tipo === 'ALERTA' ? 'status-aguardando' : 'status-liberado');
+      const badgeTexto = p.tipo === 'IMPEDITIVA' ? '🔴 Impeditiva' : (p.tipo === 'ALERTA' ? '🟡 Alerta' : '🟢 Informativa');
+
+      return `
+        <label style="display: flex; align-items: flex-start; gap: 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 8px 12px; cursor: pointer;">
+          <input type="checkbox" class="chk-pergunta-base" data-idx="${idx}" checked style="margin-top: 3px; accent-color: var(--cyan-400); cursor: pointer;">
+          <div style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+              <span style="font-size: 0.84rem; font-weight: 500; color: #fff;">${p.enunciado}</span>
+              <span class="badge-status ${badgeClass}" style="font-size: 0.68rem;">${badgeTexto}</span>
+            </div>
+            <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">
+              <strong>Fundamento:</strong> ${p.fundamento}
+            </div>
+          </div>
+        </label>
+      `;
+    }).join('');
+  };
+
+  renderizarPerguntasBase('RM');
+
+  // Ao alterar a modalidade, atualiza perguntas base e sugestão de código
+  const selectMod = document.getElementById('novoProtoModalidade');
+  const inputNome = document.getElementById('novoProtoNome');
+  const inputCodigo = document.getElementById('novoProtoCodigo');
+  const inputTussNome = document.getElementById('novoProtoTussNome');
+  const inputTussRegiao = document.getElementById('novoProtoTussRegiao');
+
+  const atualizarSugestaoCodigo = () => {
+    const mod = selectMod.value;
+    const nome = inputNome.value.trim();
+    if (!nome) return;
+
+    // Remove acentos e caracteres especiais
+    const limpo = nome
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/^(RM|TC)\s*/, '')
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+    inputCodigo.value = `${mod}_${limpo}`.slice(0, 25);
+    if (!inputTussNome.value) inputTussNome.value = nome;
+    if (!inputTussRegiao.value) {
+      const palavras = limpo.split('_');
+      inputTussRegiao.value = palavras[0] ? palavras[0].charAt(0).toUpperCase() + palavras[0].slice(1).toLowerCase() : '';
+    }
+  };
+
+  inputNome.addEventListener('input', atualizarSugestaoCodigo);
+  selectMod.addEventListener('change', () => {
+    renderizarPerguntasBase(selectMod.value);
+    atualizarSugestaoCodigo();
+  });
+
+  // Contador de perguntas dinâmicas
+  let contadorPerguntasCustom = 0;
+  const containerPerguntasEspecificas = document.getElementById('containerPerguntasEspecificas');
+
+  const adicionarLinhaPerguntaAnatomica = (enunciadoPadrao = '', tipoPadrao = 'IMPEDITIVA', gatilhoPadrao = '', fundamentoPadrao = '') => {
+    contadorPerguntasCustom++;
+    const rowId = `pergunta_custom_${contadorPerguntasCustom}`;
+    const card = document.createElement('div');
+    card.id = rowId;
+    card.style.background = 'rgba(15, 23, 42, 0.8)';
+    card.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+    card.style.borderRadius = '8px';
+    card.style.padding = '12px 14px';
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+    card.style.gap = '10px';
+
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.78rem; font-family: var(--font-mono); color: var(--cyan-400); font-weight: 700;">
+          <i class="fa-solid fa-circle-question"></i> Pergunta Anatômica #${contadorPerguntasCustom}
+        </span>
+        <button type="button" title="Remover Pergunta" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 2px 6px; font-size: 0.85rem;" onclick="document.getElementById('${rowId}')?.remove()">
+          <i class="fa-solid fa-trash-can"></i> Remover
+        </button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 3fr 1.5fr; gap: 10px;">
+        <div class="form-field">
+          <label class="form-label" style="font-size: 0.75rem;">Enunciado da Pergunta Clínica:</label>
+          <input type="text" class="form-input custom-p-enunciado" value="${enunciadoPadrao}" placeholder="Ex: Possui derivação ventrículo-peritoneal (DVP) com regulagem magnética?" required>
+        </div>
+        <div class="form-field">
+          <label class="form-label" style="font-size: 0.75rem;">Classificação do Semáforo:</label>
+          <select class="form-input custom-p-tipo" style="cursor: pointer;">
+            <option value="IMPEDITIVA" ${tipoPadrao === 'IMPEDITIVA' ? 'selected' : ''}>🔴 Impeditiva (Bloqueio Automático)</option>
+            <option value="ALERTA" ${tipoPadrao === 'ALERTA' ? 'selected' : ''}>🟡 Alerta Operacional (Amarelo)</option>
+            <option value="INFORMATIVA" ${tipoPadrao === 'INFORMATIVA' ? 'selected' : ''}>🟢 Critério Informativo Clínico</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="form-field">
+          <label class="form-label" style="font-size: 0.75rem;">Gatilho no Semáforo:</label>
+          <input type="text" class="form-input custom-p-gatilho" value="${gatilhoPadrao}" placeholder="Ex: Se SIM -> Bloqueio de Segurança">
+        </div>
+        <div class="form-field">
+          <label class="form-label" style="font-size: 0.75rem;">Fundamento Radiológico / Justificativa:</label>
+          <input type="text" class="form-input custom-p-fundamento" value="${fundamentoPadrao}" placeholder="Ex: Válvulas programáveis podem descalibrar sob campo de 1.5T/3.0T.">
+        </div>
+      </div>
+    `;
+
+    containerPerguntasEspecificas.appendChild(card);
+  };
+
+  document.getElementById('btnAdicionarPerguntaEspecifica').addEventListener('click', () => {
+    adicionarLinhaPerguntaAnatomica();
+  });
+
+  // Submissão do Formulário
+  document.getElementById('formNovoProtocoloModal').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const btnSalvar = document.getElementById('btnSalvarNovoProtocolo');
+    btnSalvar.disabled = true;
+    btnSalvar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Ativando Protocolo...';
+
+    const nome = inputNome.value.trim();
+    let codigo = inputCodigo.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    const modalidade = selectMod.value;
+    const icone = document.getElementById('novoProtoIcone').value || 'fa-brain';
+
+    if (!codigo) {
+      codigo = `${modalidade}_${Date.now()}`;
+    }
+
+    if (PROTOCOLOS_CATALOGO_INFO[codigo]) {
+      showToast(`O código de protocolo "${codigo}" já existe. Escolha outro código identificador.`, 'error');
+      btnSalvar.disabled = false;
+      btnSalvar.innerHTML = '<i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo';
+      return;
+    }
+
+    // Coleta perguntas base marcadas
+    const listaBase = modalidade === 'TC' ? PERGUNTAS_PADRAO_TC : PERGUNTAS_PADRAO_RM;
+    const perguntasFinais = [];
+    const metadataFinais = {};
+
+    container.querySelectorAll('.chk-pergunta-base:checked').forEach(chk => {
+      const idx = parseInt(chk.getAttribute('data-idx'));
+      const p = listaBase[idx];
+      if (p) {
+        const codigoPerg = `${codigo}_${p.codigoSufixo}`;
+        perguntasFinais.push({
+          codigo: codigoPerg,
+          enunciado: p.enunciado,
+          impeditivo: p.impeditivo
+        });
+        metadataFinais[codigoPerg] = {
+          tipo: p.tipo,
+          gatilho: p.gatilho,
+          fundamento: p.fundamento
+        };
+      }
+    });
+
+    // Coleta perguntas específicas adicionadas
+    container.querySelectorAll('#containerPerguntasEspecificas > div').forEach((card, idx) => {
+      const enunciado = card.querySelector('.custom-p-enunciado')?.value.trim();
+      const tipo = card.querySelector('.custom-p-tipo')?.value || 'INFORMATIVA';
+      let gatilho = card.querySelector('.custom-p-gatilho')?.value.trim();
+      let fundamento = card.querySelector('.custom-p-fundamento')?.value.trim();
+
+      if (enunciado) {
+        const codigoPerg = `${codigo}_ANAT_${idx + 1}`;
+        const impeditivo = tipo === 'IMPEDITIVA';
+
+        if (!gatilho) {
+          gatilho = impeditivo ? 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame' : (tipo === 'ALERTA' ? 'Se SIM -> 🟡 Semáforo Amarelo' : 'Critério informativo clínico');
+        }
+        if (!fundamento) {
+          fundamento = 'Critério específico da região anatômica para segurança e direcionamento técnico.';
+        }
+
+        perguntasFinais.push({
+          codigo: codigoPerg,
+          enunciado: enunciado,
+          impeditivo: impeditivo
+        });
+        metadataFinais[codigoPerg] = {
+          tipo: tipo,
+          gatilho: gatilho,
+          fundamento: fundamento
+        };
+      }
+    });
+
+    if (perguntasFinais.length === 0) {
+      showToast('Selecione pelo menos uma pergunta de segurança ou adicione uma pergunta personalizada.', 'error');
+      btnSalvar.disabled = false;
+      btnSalvar.innerHTML = '<i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo';
+      return;
+    }
+
+    // Coleta e valida procedimento inicial obrigatório
+    const tussCodigo = document.getElementById('novoProtoTussCodigo')?.value.trim();
+    const tussNome = document.getElementById('novoProtoTussNome')?.value.trim();
+    const tussRegiao = document.getElementById('novoProtoTussRegiao')?.value.trim();
+
+    if (!tussNome) {
+      showToast('O nome do procedimento médico integrado é obrigatório.', 'error');
+      btnSalvar.disabled = false;
+      btnSalvar.innerHTML = '<i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo';
+      document.getElementById('novoProtoTussNome')?.focus();
+      return;
+    }
+
+    if (!tussRegiao) {
+      showToast('A região anatômica do procedimento é obrigatória.', 'error');
+      btnSalvar.disabled = false;
+      btnSalvar.innerHTML = '<i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo';
+      document.getElementById('novoProtoTussRegiao')?.focus();
+      return;
+    }
+
+    const validacaoTuss = validarCodigoTussERis(tussCodigo);
+    if (!validacaoTuss.valido) {
+      showToast(validacaoTuss.mensagem, 'error');
+      btnSalvar.disabled = false;
+      btnSalvar.innerHTML = '<i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo';
+      document.getElementById('novoProtoTussCodigo')?.focus();
+      return;
+    }
+
+    const procedimentosIniciais = [
+      {
+        codigoTuss: validacaoTuss.codigoFormatado,
+        nome: tussNome,
+        regiao: tussRegiao
+      }
+    ];
+
+    // Registra nas estruturas do sistema
+    PROTOCOLOS_CATALOGO_INFO[codigo] = {
+      id: codigo,
+      nome: nome,
+      modalidade: modalidade,
+      icone: icone,
+      corIcone: modalidade === 'TC' ? 'var(--cyan-400)' : 'var(--purple-400)',
+      isCustom: true
+    };
+
+    PROTOCOLOS_CHECKLIST[codigo] = perguntasFinais;
+    Object.assign(METADATA_REGRAS_CLINICAS, metadataFinais);
+    CATALOGO_PROCEDIMENTOS_FORMULARIO[codigo] = procedimentosIniciais;
+
+    // Salva no LocalStorage para persistência
+    salvarProtocolosCustomizadosStorage();
+
+    // Atualiza o seletor visual e renderiza o novo protocolo
+    atualizarOpcoesSeletorProtocolos(codigo);
+    renderizarDicionarioProtocolos(codigo);
+
+    container.remove();
+    showToast(`Protocolo anatômico "${nome}" criado e ativado com sucesso!`, 'success');
+  });
+}
+
+function adminExcluirProtocoloCustomizado(protocoloId) {
+  const hiddenSelect = document.getElementById('selectProtocoloAdmin');
+  const idParaExcluir = protocoloId || hiddenSelect?.value;
+  if (!idParaExcluir) return;
+
+  const info = PROTOCOLOS_CATALOGO_INFO[idParaExcluir];
+  if (!info || !info.isCustom) {
+    showToast('Apenas protocolos personalizados adicionados pela equipe podem ser excluídos.', 'info');
+    return;
+  }
+
+  // Verifica se há exames na grade usando este protocolo
+  const examesUsando = UIState.exames.filter(e => (e.tipoFormulario || '') === idParaExcluir);
+  if (examesUsando.length > 0) {
+    alert(`Não é possível excluir o protocolo "${info.nome}" pois existem ${examesUsando.length} exame(s) agendado(s) na grade utilizando-o.\n\nEdite ou exclua os exames agendados antes de remover o protocolo.`);
+    return;
+  }
+
+  if (!confirm(`Tem certeza que deseja EXCLUIR permanentemente o protocolo "${info.nome}"?\n\nAs perguntas e regras clínicas deste protocolo serão removidas do sistema.`)) {
+    return;
+  }
+
+  delete PROTOCOLOS_CATALOGO_INFO[idParaExcluir];
+  delete PROTOCOLOS_CHECKLIST[idParaExcluir];
+  delete CATALOGO_PROCEDIMENTOS_FORMULARIO[idParaExcluir];
+
+  salvarProtocolosCustomizadosStorage();
+  atualizarOpcoesSeletorProtocolos('RM_COLUNA');
+  renderizarDicionarioProtocolos('RM_COLUNA');
+  showToast(`Protocolo "${info.nome}" excluído com sucesso!`, 'success');
+}

@@ -4,7 +4,7 @@
 ![C# 12](https://img.shields.io/badge/C%23-12.0-239120?logo=csharp&logoColor=white)
 ![Architecture](https://img.shields.io/badge/Architecture-Onion%20Architecture-blue)
 ![Database](https://img.shields.io/badge/Database-MySQL%20%7C%20SQLite%20(Auto--Detect)-00758F?logo=mysql&logoColor=white)
-![Tests](https://img.shields.io/badge/Tests-38%20Passed-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-58%20Passed-brightgreen)
 ![Swagger](https://img.shields.io/badge/API%20Docs-Swagger%20OpenAPI-85EA2D?logo=swagger&logoColor=black)
 
 Aplicação web e API RESTful corporativa desenvolvida para o **Posto de Triagem Clínica em Serviços de Diagnóstico por Imagem**. O sistema automatiza a recepção e avaliação de segurança de pacientes agendados para **Tomografia Computadorizada (TC)** e **Ressonância Magnética (RM)**, aplicando protocolos de segurança baseados no modelo de **Checklist da Aviação** (Semáforo Clínico Verde, Amarelo e Vermelho) e diretrizes do CBR/ACR.
@@ -36,6 +36,10 @@ Esta solução atende às seguintes necessidades clínicas e operacionais:
    - O documento é salvo automaticamente na pasta física do sistema operacional:
      `C:\Users\<usuario>\Documents\TriagensDiagnosticoImagem\`
    - O caminho físico completo é persistido na coluna `caminho_arquivo_armazenado` no banco de dados e registrado na trilha de auditoria.
+6. **Gestão Dinâmica de Protocolos Anatômicos & Validação Estrita de Códigos TUSS e RIS**:
+   - **Criação e Expansão Visual**: Administradores podem criar novos protocolos clínicos diretamente no painel (ex: `RM_CRANIO`, `TC_FACE`) definindo perguntas especializadas, criticidade de semáforo e regras impeditivas.
+   - **Validação de Unicidade Global de TUSS e RIS**: O preenchimento do código TUSS (terminologia unificada da saúde suplementar) ou RIS é **estritamente obrigatório** e o sistema impede o cadastro de códigos duplicados ou já pertencentes a outro exame do catálogo.
+   - **Fallback de Segurança Universal**: Se um exame for agendado com protocolo inédito ou não mapeado, o motor clínico aciona automaticamente as regras universais de segurança da modalidade (RM ou TC), garantindo zero travamentos e proteção máxima ao paciente.
 
 ---
 
@@ -87,15 +91,15 @@ TriagemImagem.sln
 │   └── Extensions/                  # Registro de repositórios e contextos na DI
 │
 ├── TriagemImagem.Api/               # 4. CAMADA DE ENTRADA HTTP (Web API REST)
-│   ├── Controllers/                 # AuthController, WorklistController, TriagemController, DatabaseHealthController
+│   ├── Controllers/                 # AuthController, WorklistController, TriagemController, AdminController, DatabaseHealthController
 │   ├── Middlewares/                 # ExceptionHandlingMiddleware (captura global de DomainException -> 400)
 │   ├── appsettings.json             # Strings de conexão dos Bancos 1 e 2
 │   └── Program.cs                   # Pipeline ASP.NET Core, CORS, Swagger e inicialização de bancos
 │
-├── TriagemImagem.Tests/             # 5. TESTES AUTOMATIZADOS (xUnit)
-│   ├── Domain/                      # Testes de CPF, Dose de Contraste e Semáforo Clínico
-│   ├── Application/                 # Testes de casos de uso e geração de laudos em Documentos
-│   └── Api/                         # Testes de integração dos endpoints REST
+├── TriagemImagem.Tests/             # 5. TESTES AUTOMATIZADOS (58 Testes xUnit)
+│   ├── Domain/                      # Testes de CPF, Dose de Contraste e Semáforo Clínico (22 testes)
+│   ├── Application/                 # Testes de casos de uso, CRUD Admin, Laudos e Worklist (26 testes)
+│   └── Api/                         # Testes de integração dos endpoints REST (10 testes)
 │
 ├── schema.sql                       # Script DDL do Banco de Dados 1 (Triagem da Aplicação)
 ├── schema_worklist_lab.sql          # Script DDL do Banco de Dados 2 (Worklist do Laboratório)
@@ -205,6 +209,14 @@ A documentação interativa Swagger pode ser acessada em: **`http://localhost:50
 | **Triagem** | `POST` | `/api/v1/triagem/{id}/cancelar` | Bloqueia/Cancela o exame por contraindicação clínica |
 | **Auditoria** | `GET` | `/api/v1/auditoria?limite=50` | Retorna o log de rastreabilidade e auditoria |
 | **Diagnóstico** | `GET` | `/api/v1/database/status` | Exibe a integridade e métricas dos Bancos 1 e 2 |
+| **Admin (Exames)** | `POST` | `/api/v1/admin/exames` | Cadastra novo exame na fila com validação estrita de TUSS/RIS |
+| **Admin (Exames)** | `PUT` | `/api/v1/admin/exames/{id}` | Edita dados do exame e paciente com recálculo automático de contraste |
+| **Admin (Exames)** | `DELETE` | `/api/v1/admin/exames/{id}` | Exclui exame com limpeza em cascata e log de auditoria |
+| **Admin (Fila)** | `POST` | `/api/v1/admin/exames/sincronizar-datas` | Sincroniza todas as datas dos exames para o dia de hoje |
+| **Admin (Fila)** | `POST` | `/api/v1/admin/exames/{id}/resetar` | Reseta status do exame para AGUARDANDO_TRIAGEM |
+| **Admin (Fila)** | `POST` | `/api/v1/admin/exames/{id}/transferir-sala` | Transfere exame para outra sala operacional |
+| **Admin (Usuários)**| `POST` | `/api/v1/admin/usuarios` | Cadastra novo operador com senha criptografada BCrypt |
+| **Admin (Usuários)**| `POST` | `/api/v1/admin/usuarios/{id}/reset-senha` | Reseta senha de operador para o padrão inicial |
 
 ---
 
@@ -231,7 +243,7 @@ Em outra janela de terminal, execute:
 dotnet test
 ```
 
-*Resultado esperado:* **Aprovado! 38 testes executados com 100% de sucesso.**
+*Resultado esperado:* **Aprovado! 58 testes executados com 100% de sucesso.**
 
 ### Passo 3: Abrir a Interface Web (Frontend)
 Basta abrir o arquivo **`frontend/index.html`** em qualquer navegador (dando duplo clique no arquivo ou via extensão *Live Server* do VS Code).
@@ -276,3 +288,12 @@ Para maximizar a produtividade do operador no posto clínico:
   3. A ficha clínica timbrada oficial é compilada e gravada em:
      `C:\Users\<usuario>\Documents\TriagensDiagnosticoImagem\`
   4. Um modal de confirmação exibe o caminho exato gravado em disco com a opção de **Imprimir Laudo**.
+
+### 7. Gestão Dinâmica de Protocolos Anatômicos & Validação Estrita de Códigos TUSS e RIS
+* **Painel Administrativo (`admin`)**:
+  * **Criação de Protocolos Anatômicos (`+ Novo Protocolo Anatômico`)**: Permite cadastrar regiões anatômicas customizadas (ex: *RM Crânio*, *RM Joelho*, *TC Face*) configurando perguntas clínicas específicas, classificação de Semáforo (🔴 Impeditiva, 🟡 Alerta, 🟢 Informativa) e regras de justificativa radiológica.
+  * **Validação Obrigatória e Não-Repetida de Códigos TUSS e RIS**:
+    * O preenchimento do código TUSS/RIS é **estritamente obrigatório** ao cadastrar ou vincular procedimentos.
+    * O sistema valida a **unicidade global** em tempo real contra toda a tabela de procedimentos cadastrados. Caso o código já pertença a outro exame (ex: `41101153`), o cadastro é bloqueado com mensagem clara prevenindo duplicidade.
+  * **Edição e Exclusão Segura de Exames**: Botões com design dark ergonômico no painel para editar dados do paciente (com recálculo de dose de contraste) ou excluir agendamentos com limpeza em cascata e registro em auditoria.
+  * **Fallback Universal de Contingência**: Caso qualquer exame na fila possua protocolo não mapeado, o sistema executa automaticamente o checklist de segurança base da modalidade, evitando falhas de execução e assegurando a checagem obrigatória contra riscos magnéticos ou nefrotóxicos.

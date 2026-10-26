@@ -168,6 +168,26 @@ const ApiClient = {
     return await this.request('/admin/exames/sincronizar-hoje', {
       method: 'POST'
     });
+  },
+
+  async criarExameAdmin(dados) {
+    return await this.request('/admin/exames', {
+      method: 'POST',
+      body: JSON.stringify(dados)
+    });
+  },
+
+  async editarExameAdmin(exameId, dados) {
+    return await this.request(`/admin/exames/${exameId}`, {
+      method: 'PUT',
+      body: JSON.stringify(dados)
+    });
+  },
+
+  async excluirExameAdmin(exameId) {
+    return await this.request(`/admin/exames/${exameId}`, {
+      method: 'DELETE'
+    });
   }
 };
 

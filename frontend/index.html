@@ -18,7 +18,73 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
   <!-- Estilos Globais do Design System -->
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=20261026_04">
+
+  <style>
+    .custom-select-container {
+      position: relative;
+      display: inline-block;
+      min-width: 320px;
+    }
+    .custom-select-trigger {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background-color: var(--bg-input, #0b101a);
+      color: #fff;
+      border: 1px solid var(--cyan-500, #0ea5e9);
+      border-radius: 8px;
+      padding: 9px 14px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 0 12px rgba(14, 165, 233, 0.16);
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+    .custom-select-trigger:hover {
+      border-color: var(--cyan-400, #38bdf8);
+      box-shadow: 0 0 16px rgba(14, 165, 233, 0.3);
+    }
+    .custom-select-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      background-color: #0d1424;
+      border: 1px solid var(--cyan-500, #0ea5e9);
+      border-radius: 8px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7), 0 0 20px rgba(14, 165, 233, 0.25);
+      padding: 6px;
+      z-index: 9999;
+      display: none;
+      backdrop-filter: blur(14px);
+    }
+    .custom-select-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-radius: 6px;
+      color: #f8fafc;
+      font-size: 0.86rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+      user-select: none;
+    }
+    .custom-select-option:hover {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+    }
+    .custom-select-option.is-selected {
+      background: rgba(56, 189, 248, 0.22);
+      color: #ffffff;
+      font-weight: 700;
+      border-left: 3px solid #38bdf8;
+    }
+  </style>
 </head>
 
 <body>
@@ -570,9 +636,6 @@
                   Biomédicos, Técnicos de RM e Estagiários compartilham as mesmas permissões clínicas (abrir ficha, laudar, dosar e assinar).
                 </p>
               </div>
-              <button type="button" class="btn btn--primary" id="btnAdminAbrirModalNovoUsuario">
-                <i class="fa-solid fa-user-plus"></i> Novo Operador
-              </button>
             </div>
 
             <div class="table-container">
@@ -596,13 +659,18 @@
 
           <!-- Seção 2: Gestão Operacional de Exames e Salas -->
           <div class="glass-panel" style="padding: 24px; margin-bottom: 20px;">
-            <div style="margin-bottom: 18px;">
-              <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">
-                <i class="fa-solid fa-hospital" style="color: var(--cyan-400); margin-right: 8px;"></i> Remanejamento de Salas &amp; Controle da Grade
-              </h3>
-              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">
-                Permite remanejar salas operacionais (ex: RM-01 para RM-02) ou resetar status para "Aguardando" caso necessário retestar o fluxo.
-              </p>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">
+                  <i class="fa-solid fa-hospital" style="color: var(--cyan-400); margin-right: 8px;"></i> Remanejamento de Salas &amp; Controle da Grade
+                </h3>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">
+                  Gerencie agendamentos, edite/exclua pacientes da grade ou cadastre novos exames para testes clínicos.
+                </p>
+              </div>
+              <button type="button" class="btn btn--primary" style="font-size: 0.85rem; padding: 7px 16px;" onclick="adminAbrirModalNovoExame()">
+                <i class="fa-solid fa-calendar-plus" style="margin-right: 6px;"></i> + Novo Agendamento de Exame
+              </button>
             </div>
 
             <div class="table-container">
@@ -687,6 +755,166 @@
                 </button>
               </div>
             </form>
+          </div>
+
+          <!-- Seção 4: Dicionário de Protocolos & Regras Clínicas Individuais -->
+          <div class="glass-panel" style="padding: 24px; margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">
+                  <i class="fa-solid fa-book-medical" style="color: var(--cyan-400); margin-right: 8px;"></i> Dicionário de Protocolos &amp; Regras Clínicas Individuais
+                </h3>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">
+                  Inspecione como as regras e perguntas de cada protocolo anatômico são avaliadas pelo Semáforo Clínico (Checklist de Aviação).
+                </p>
+              </div>
+
+              <!-- Seletor de Protocolo Customizado (Fundo Escuro e Bordas Arredondadas) -->
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <button type="button" class="btn btn--primary" id="btnAdminNovoProtocolo" onclick="adminAbrirModalNovoProtocolo()" style="font-size: 0.85rem; padding: 8px 14px; white-space: nowrap;">
+                  <i class="fa-solid fa-folder-plus" style="margin-right: 6px;"></i> + Novo Protocolo Anatômico
+                </button>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">
+                    Protocolo:
+                  </label>
+                  <div class="custom-select-container" id="customSelectProtocolo" style="position: relative; display: inline-block; min-width: 320px;">
+                    <div class="custom-select-trigger" id="customSelectTrigger" tabindex="0" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; background-color: var(--bg-input, #0b101a); color: #fff; border: 1px solid var(--cyan-500, #0ea5e9); border-radius: 8px; padding: 9px 14px; font-weight: 600; cursor: pointer; user-select: none;">
+                      <span id="customSelectLabel"><i class="fa-solid fa-bone" style="color: var(--purple-400); margin-right: 8px;"></i> RM Coluna (Cervical / Torácica / Lombar)</span>
+                      <i class="fa-solid fa-chevron-down chevron-icon"></i>
+                    </div>
+                    <div class="custom-select-menu" id="customSelectMenu" style="display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; background-color: #0d1424; border: 1px solid var(--cyan-500, #0ea5e9); border-radius: 8px; box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7), 0 0 20px rgba(14, 165, 233, 0.25); padding: 6px; z-index: 9999; backdrop-filter: blur(14px);">
+                      <div class="custom-select-option is-selected" data-value="RM_COLUNA">
+                        <span><i class="fa-solid fa-bone" style="margin-right: 8px; color: var(--purple-400);"></i> RM Coluna (Cervical / Torácica / Lombar)</span>
+                        <i class="fa-solid fa-check check-icon" style="color: var(--cyan-400);"></i>
+                      </div>
+                      <div class="custom-select-option" data-value="RM_BRACO_ANTEBRACO">
+                        <span><i class="fa-solid fa-hand-dots" style="margin-right: 8px; color: var(--purple-400);"></i> RM Braço / Antebraço (Membro Superior)</span>
+                        <i class="fa-solid fa-check check-icon" style="color: var(--cyan-400); display: none;"></i>
+                      </div>
+                      <div class="custom-select-option" data-value="RM_BACIA_QUADRIL">
+                        <span><i class="fa-solid fa-person" style="margin-right: 8px; color: var(--purple-400);"></i> RM Bacia / Quadril (Articulação Coxofemoral)</span>
+                        <i class="fa-solid fa-check check-icon" style="color: var(--cyan-400); display: none;"></i>
+                      </div>
+                      <div class="custom-select-option" data-value="TC_TORAX">
+                        <span><i class="fa-solid fa-lungs" style="margin-right: 8px; color: var(--cyan-400);"></i> TC Tórax com Contraste Iodado</span>
+                        <i class="fa-solid fa-check check-icon" style="color: var(--cyan-400); display: none;"></i>
+                      </div>
+                      <div class="custom-select-option" data-value="TC_ABDOMEN">
+                        <span><i class="fa-solid fa-circle-radiation" style="margin-right: 8px; color: var(--cyan-400);"></i> TC Abdômen Total com Contraste</span>
+                        <i class="fa-solid fa-check check-icon" style="color: var(--cyan-400); display: none;"></i>
+                      </div>
+                    </div>
+                    <!-- Hidden native select for full programmatic compatibility -->
+                    <select id="selectProtocoloAdmin" style="display: none;">
+                      <option value="RM_COLUNA">RM Coluna (Cervical / Torácica / Lombar)</option>
+                      <option value="RM_BRACO_ANTEBRACO">RM Braço / Antebraço (Membro Superior)</option>
+                      <option value="RM_BACIA_QUADRIL">RM Bacia / Quadril (Articulação Coxofemoral)</option>
+                      <option value="TC_TORAX">TC Tórax com Contraste Iodado</option>
+                      <option value="TC_ABDOMEN">TC Abdômen Total com Contraste</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Resumo e Estatísticas do Protocolo Selecionado -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
+              <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Modalidade de Exame</span>
+                  <div id="protocoloModalidadeBadge" style="margin-top: 4px; font-weight: 700; color: #fff; font-size: 1rem;">Ressonância Magnética (RM)</div>
+                </div>
+                <button type="button" id="btnExcluirProtocoloCustom" class="btn btn--secondary hidden" style="font-size: 0.75rem; padding: 4px 8px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="adminExcluirProtocoloCustomizado()" title="Excluir este protocolo personalizado">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+
+              <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-sm); padding: 12px 16px;">
+                <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--rose-400); font-weight: 700;">🔴 Contraindicações Absolutas</span>
+                <div id="protocoloTotalImpeditivas" style="margin-top: 4px; font-weight: 700; color: var(--rose-400); font-size: 1.1rem;">3 Perguntas</div>
+              </div>
+
+              <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: var(--radius-sm); padding: 12px 16px;">
+                <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--amber-400); font-weight: 700;">🟡 Alertas Operacionais</span>
+                <div id="protocoloTotalAlertas" style="margin-top: 4px; font-weight: 700; color: var(--amber-400); font-size: 1.1rem;">1 Pergunta</div>
+              </div>
+
+              <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-sm); padding: 12px 16px;">
+                <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--emerald-400); font-weight: 700;">🟢 Critérios Informativos</span>
+                <div id="protocoloTotalInformativas" style="margin-top: 4px; font-weight: 700; color: var(--emerald-400); font-size: 1.1rem;">6 Perguntas</div>
+              </div>
+            </div>
+
+            <!-- Painéis Integrados: Procedimentos do Catálogo & Exames na Fila -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 20px;">
+              <!-- Card: Procedimentos do Catálogo Associados ao Formulário -->
+              <div style="background: rgba(14, 20, 32, 0.65); border: 1px solid var(--bg-card-border); border-radius: var(--radius-sm); padding: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <span style="font-size: 0.88rem; font-weight: 700; color: #fff;">
+                    <i class="fa-solid fa-list-check" style="color: var(--cyan-400); margin-right: 6px;"></i> Procedimentos do Catálogo Integrados
+                  </span>
+                  <span id="badgeQtdProcedimentos" class="badge-status status-liberado" style="font-size: 0.75rem;">0 Procedimentos</span>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
+                  Exames e pedidos médicos (RIS/HIS/TUSS) que ativam automaticamente este formulário de triagem:
+                </p>
+                <div id="listaProcedimentosIntegrados" style="display: flex; flex-direction: column; gap: 8px; max-height: 190px; overflow-y: auto; padding-right: 4px;">
+                  <!-- Carregado dinamicamente -->
+                </div>
+                <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 0.78rem; color: var(--text-secondary);">
+                    <i class="fa-solid fa-sliders"></i> Mapeamento De-Para
+                  </span>
+                  <button type="button" class="btn btn--secondary" style="padding: 4px 10px; font-size: 0.78rem;" onclick="adminAbrirVincularProcedimento()">
+                    <i class="fa-solid fa-plus"></i> Associar Novo Exame
+                  </button>
+                </div>
+              </div>
+
+              <!-- Card: Exames Ativos na Worklist com este Formulário -->
+              <div style="background: rgba(14, 20, 32, 0.65); border: 1px solid var(--bg-card-border); border-radius: var(--radius-sm); padding: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <span style="font-size: 0.88rem; font-weight: 700; color: #fff;">
+                    <i class="fa-solid fa-user-clock" style="color: var(--amber-400); margin-right: 6px;"></i> Pacientes na Fila Atual com este Protocolo
+                  </span>
+                  <span id="badgeQtdWorklistProtocolo" class="badge-status status-aguardando" style="font-size: 0.75rem;">0 na Fila</span>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
+                  Exames da grade operacional de hoje que estão utilizando este questionário:
+                </p>
+                <div id="listaWorklistProtocolo" style="display: flex; flex-direction: column; gap: 8px; max-height: 190px; overflow-y: auto; padding-right: 4px;">
+                  <!-- Carregado dinamicamente -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Tabela com Detalhamento Individual de Cada Regra -->
+            <div class="table-container">
+              <table class="worklist-table">
+                <thead>
+                  <tr>
+                    <th style="width: 150px;">Código</th>
+                    <th>Enunciado da Pergunta</th>
+                    <th style="width: 140px;">Classificação</th>
+                    <th style="width: 230px;">Comportamento no Sistema</th>
+                    <th>Fundamento Clínico / Radiológico</th>
+                  </tr>
+                </thead>
+                <tbody id="adminProtocoloRegrasTableBody">
+                  <!-- Carregado dinamicamente via app.js -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Diretriz Arquitetural: Hard Rules vs Soft Rules -->
+            <div style="margin-top: 18px; padding: 14px 18px; background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: var(--radius-sm); display: flex; align-items: flex-start; gap: 12px;">
+              <i class="fa-solid fa-shield-halved" style="color: var(--cyan-400); font-size: 1.2rem; margin-top: 2px;"></i>
+              <div style="font-size: 0.85rem; line-height: 1.45; color: var(--text-secondary);">
+                <strong style="color: #fff;">Diretriz Arquitetural Médica (Por que as regras são garantidas no código?):</strong><br>
+                Na engenharia clínica e normas do CBR/ACR, contraindicações de vida ou morte (marcapasso em RM, clipes ferromagnéticos, histórico de choque anafilático ao iodo) <strong>devem ser invioláveis no código de Domínio (Hard Rules)</strong>. Se fossem configuráveis livremente pela interface, uma edição inadvertida poderia desativar um alerta letal e colocar a vida do paciente em risco dentro do túnel do magneto. Já os parâmetros farmacológicos de proporção e tetos de contraste são parametrizáveis institucionalmente (Soft Rules).
+              </div>
+            </div>
           </div>
         </section>
       </main>
