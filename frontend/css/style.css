@@ -622,6 +622,162 @@ body {
   color: #ffffff;
 }
 
+/* Botão Alternador de Layout (Topo vs Lateral) */
+.btn-layout-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  color: var(--cyan-400);
+  font-family: var(--font-title);
+  font-size: 0.80rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-layout-toggle:hover {
+  background: rgba(14, 165, 233, 0.22);
+  border-color: var(--cyan-400);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* ==============================================================================
+   PROTÓTIPO: LAYOUT COM MENU HORIZONTAL SUPERIOR (TOPBAR NAV)
+   Permite alternar entre Menu Lateral e Menu Superior mantendo a mesma ergonomia
+   ============================================================================== */
+.app-layout.layout-top-nav {
+  flex-direction: column;
+}
+
+.app-layout.layout-top-nav .app-sidebar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: auto;
+  min-height: 64px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 28px;
+  border-right: none;
+  border-bottom: 1px solid var(--bg-card-border);
+  z-index: 1000;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  transform: none !important;
+}
+
+.app-layout.layout-top-nav .app-sidebar > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+  min-width: 0;
+}
+
+.app-layout.layout-top-nav .sidebar-brand {
+  padding-bottom: 0;
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-right: 18px;
+  border-right: 1px solid var(--bg-card-border);
+  flex-shrink: 0;
+}
+
+.app-layout.layout-top-nav .sidebar-brand .brand-badge {
+  width: 38px;
+  height: 38px;
+  font-size: 17px;
+}
+
+.app-layout.layout-top-nav .sidebar-brand .brand-tag {
+  display: none;
+}
+
+.app-layout.layout-top-nav .sidebar-nav {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-layout.layout-top-nav .nav-label {
+  display: none;
+}
+
+.app-layout.layout-top-nav .sidebar-nav-item {
+  width: auto;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.app-layout.layout-top-nav .sidebar-footer {
+  padding-top: 0;
+  border-top: none;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.app-layout.layout-top-nav .user-pill {
+  padding: 4px 10px;
+  gap: 8px;
+}
+
+.app-layout.layout-top-nav .user-avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 13px;
+}
+
+.app-layout.layout-top-nav .user-name {
+  font-size: 0.82rem;
+  max-width: 140px;
+}
+
+.app-layout.layout-top-nav .user-role {
+  font-size: 0.68rem;
+}
+
+.app-layout.layout-top-nav .btn-logout {
+  padding: 6px 12px;
+  font-size: 0.80rem;
+}
+
+.app-layout.layout-top-nav .main-wrapper {
+  margin-left: 0;
+  width: 100%;
+}
+
+.app-layout.layout-top-nav .topbar {
+  top: 64px;
+  height: 56px;
+  padding: 0 28px;
+  background: rgba(15, 23, 42, 0.70);
+  border-bottom: 1px solid var(--bg-card-border);
+  backdrop-filter: blur(16px);
+  z-index: 900;
+}
+
+[data-theme="light"] .app-layout.layout-top-nav .topbar {
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.app-layout.layout-top-nav .topbar-title {
+  font-size: 1.10rem;
+}
+
 /* Área de Conteúdo */
 .main-wrapper {
   margin-left: var(--sidebar-width);
@@ -1356,6 +1512,27 @@ body {
 @media (max-width: 992px) {
   .app-sidebar { transform: translateX(-100%); }
   .main-wrapper { margin-left: 0; }
+
+  .app-layout.layout-top-nav .app-sidebar {
+    transform: none !important;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .app-layout.layout-top-nav .app-sidebar > div:first-child {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  .app-layout.layout-top-nav .sidebar-nav {
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+  .app-layout.layout-top-nav .sidebar-footer {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 /* ==============================================================================

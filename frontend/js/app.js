@@ -281,6 +281,7 @@ const UIState = {
 document.addEventListener('DOMContentLoaded', () => {
   carregarProtocolosCustomizados();
   initTema();
+  initLayoutNav();
   initAutenticacao();
   initNavegacao();
   initWorklist();
@@ -322,6 +323,46 @@ function aplicarTema(tema) {
   icones.forEach(i => {
     if (i) i.className = tema === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
   });
+}
+
+/* ==============================================================================
+   LAYOUT (BARRA SUPERIOR HORIZONTAL vs SIDEBAR LATERAL)
+   ============================================================================== */
+function initLayoutNav() {
+  const layoutSalvo = localStorage.getItem('app_nav_layout') || 'top';
+  aplicarLayoutNav(layoutSalvo);
+
+  const btnToggle = document.getElementById('btnToggleLayoutNav');
+  if (btnToggle) {
+    btnToggle.addEventListener('click', () => {
+      const appLayout = document.getElementById('app-layout');
+      const isTop = appLayout?.classList.contains('layout-top-nav');
+      aplicarLayoutNav(isTop ? 'sidebar' : 'top');
+    });
+  }
+}
+
+function aplicarLayoutNav(modo) {
+  const appLayout = document.getElementById('app-layout');
+  const btnToggle = document.getElementById('btnToggleLayoutNav');
+  const icon = document.getElementById('iconLayoutToggle');
+  const text = document.getElementById('textLayoutToggle');
+
+  if (!appLayout) return;
+
+  if (modo === 'top') {
+    appLayout.classList.add('layout-top-nav');
+    localStorage.setItem('app_nav_layout', 'top');
+    if (icon) icon.className = 'fa-solid fa-table-columns';
+    if (text) text.textContent = 'Mudar p/ Menu Lateral';
+    if (btnToggle) btnToggle.title = 'Alternar para o menu vertical clássico lateral';
+  } else {
+    appLayout.classList.remove('layout-top-nav');
+    localStorage.setItem('app_nav_layout', 'sidebar');
+    if (icon) icon.className = 'fa-solid fa-window-maximize';
+    if (text) text.textContent = 'Mudar p/ Menu Superior';
+    if (btnToggle) btnToggle.title = 'Alternar para o novo menu horizontal superior (Topbar)';
+  }
 }
 
 /* ==============================================================================
