@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
   <!-- Estilos Globais do Design System -->
-  <link rel="stylesheet" href="css/style.css?v=20261026_04">
+  <link rel="stylesheet" href="css/style.css?v=20261026_05">
 
   <style>
     .custom-select-container {
@@ -165,7 +165,7 @@
   <!-- =========================================================================
        2. LAYOUT PRINCIPAL DA APLICAÇÃO (SIDEBAR + MAIN CONTENT)
        ========================================================================= -->
-  <div id="app-layout" class="app-layout hidden">
+  <div id="app-layout" class="app-layout layout-top-nav hidden">
     <!-- Sidebar Lateral -->
     <aside class="app-sidebar" id="appSidebar">
       <div>
@@ -230,6 +230,10 @@
           <h1 class="topbar-title" id="topbarTitle">Grade de Atendimentos do Dia</h1>
         </div>
         <div class="topbar-right">
+          <button type="button" class="btn-layout-toggle" id="btnToggleLayoutNav" title="Alternar entre Barra Superior e Menu Lateral">
+            <i class="fa-solid fa-table-columns" id="iconLayoutToggle"></i>
+            <span id="textLayoutToggle">Mudar p/ Menu Lateral</span>
+          </button>
           <div class="status-pill" id="apiStatusPill" title="Status de conexão com o Backend .NET">
             <span class="status-dot" id="apiStatusDot"></span>
             <span id="apiStatusText">Verificando API...</span>
