@@ -13,11 +13,7 @@ public abstract class ApiTestBase
     {
         Output = output;
         var baseUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? "http://localhost:5000";
-        Client = new HttpClient 
-        { 
-            BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
-            Timeout = TimeSpan.FromSeconds(2)
-        };
+        Client = new HttpClient { BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"), Timeout = TimeSpan.FromSeconds(10) };
     }
 
     protected HttpClient Client { get; }
@@ -27,15 +23,21 @@ public abstract class ApiTestBase
     {
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(800));
-            var resp = await Client.GetAsync("swagger/v1/swagger.json", cts.Token);
-            return resp.IsSuccessStatusCode;
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            var response = await Client.GetAsync("swagger/v1/swagger.json", cts.Token);
+            return response.IsSuccessStatusCode;
         }
         catch
         {
-            Output.WriteLine("⚠️ API offline em localhost:5000. Inicie a aplicação com 'dotnet run --project TriagemImagem.Api' para testes de integração de rede.");
+            Output.WriteLine("API offline em localhost:5000. Inicie-a antes dos testes de integração.");
             return false;
         }
+    }
+
+    protected async Task GarantirApiDisponivelAsync()
+    {
+        if (await IsApiReachableAsync()) return;
+        throw new Xunit.Sdk.XunitException("A API não está disponível. Inicie-a antes de executar os testes.");
     }
 
     protected async Task<string> LogResponseAsync(string request, HttpResponseMessage response)
@@ -43,6 +45,7 @@ public abstract class ApiTestBase
         var body = await response.Content.ReadAsStringAsync();
         Output.WriteLine($"{request} => {(int)response.StatusCode} ({response.StatusCode})");
         Output.WriteLine(body);
+        await ApiTestResultRecorder.RegistrarAsync(request, response, body);
         return body;
     }
 }
