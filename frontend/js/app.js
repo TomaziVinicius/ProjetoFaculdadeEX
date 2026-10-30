@@ -684,7 +684,10 @@ function renderizarWorklist() {
     return `
       <tr>
         <td><strong>${item.horario}</strong></td>
-        <td><span style="font-family: var(--font-mono); font-weight: 700;">#${item.atendimento}</span></td>
+        <td>
+          <span style="font-family: var(--font-mono); font-weight: 700;">#${item.atendimento}</span>
+          ${item.sequenciaProcedimentoInterno ? `<div style="font-size: 0.72rem; color: var(--purple-300); font-weight: 600;">Seq: ${item.sequenciaProcedimentoInterno}</div>` : ''}
+        </td>
         <td>
           <div class="paciente-col">
             <span class="paciente-nome">${item.pacienteNome}</span>
@@ -746,6 +749,10 @@ async function abrirTriagem(exameId) {
   // Preenche dados do paciente na tela de triagem
   document.getElementById('triagemPacienteNome').textContent = item.pacienteNome;
   document.getElementById('triagemAtendimentoNum').textContent = item.atendimento;
+
+  const elemSeq = document.getElementById('triagemSeqInterna');
+  if (elemSeq) elemSeq.textContent = item.sequenciaProcedimentoInterno || '-';
+
   document.getElementById('triagemCpf').textContent = item.documentoCpf;
   document.getElementById('triagemIdade').textContent = `${item.idade} anos`;
   document.getElementById('triagemSexo').textContent = item.sexo === 'M' ? 'Masculino' : 'Feminino';
@@ -4886,7 +4893,7 @@ async function carregarExamesDiaTasy(data, busca) {
           </td>
           <td>
             <span style="font-weight: 700; color: var(--cyan-400);">#${item.atendimento}</span>
-            <div style="font-size: 0.72rem; color: var(--text-muted);">Pront: ${item.prontuario || '-'}</div>
+            <div style="font-size: 0.72rem; color: var(--purple-300); font-weight: 600;">Seq. Interna: ${item.sequenciaProcedimentoInterno || '-'}</div>
           </td>
           <td>
             <div style="font-weight: 700; color: #fff;">${item.pacienteNome}</div>
@@ -4969,7 +4976,7 @@ function inferirProtocoloPorProcedimento(descricao, codigoProcedimento) {
   return 'RM_COLUNA';
 }
 
-function iniciarTriagemExameTasy(index) {
+async function iniciarTriagemExameTasy(index) {
   const itemTasy = UIState.examesTasyDia[index];
   if (!itemTasy) return;
 
@@ -4977,14 +4984,18 @@ function iniciarTriagemExameTasy(index) {
   const protoId = inferirProtocoloPorProcedimento(itemTasy.procedimentoNome, itemTasy.codigoProcedimento);
   const protoInfo = PROTOCOLOS_CATALOGO_INFO[protoId] || { nome: 'Ressonância Magnética' };
 
-  // Verifica se o exame já está na fila local
-  let exameLocal = UIState.exames.find(e => e.atendimento === itemTasy.atendimento);
+  // Verifica se o exame já está na fila local (compara atendimento e sequenciaProcedimentoInterno)
+  let exameLocal = UIState.exames.find(e => 
+    e.atendimento === itemTasy.atendimento && 
+    (itemTasy.sequenciaProcedimentoInterno ? e.sequenciaProcedimentoInterno === itemTasy.sequenciaProcedimentoInterno : true)
+  );
 
   if (exameLocal) {
     // Atualiza sala e dados do atendimento
     exameLocal.sala = salaAtual;
     if (itemTasy.medicoSolicitante) exameLocal.medicoSolicitante = itemTasy.medicoSolicitante;
     if (itemTasy.convenio) exameLocal.convenio = itemTasy.convenio;
+    if (itemTasy.sequenciaProcedimentoInterno) exameLocal.sequenciaProcedimentoInterno = itemTasy.sequenciaProcedimentoInterno;
   } else {
     // Cria novo exame a partir do Tasy
     const novoId = Date.now();
@@ -4995,6 +5006,7 @@ function iniciarTriagemExameTasy(index) {
     exameLocal = {
       id: novoId,
       atendimento: itemTasy.atendimento,
+      sequenciaProcedimentoInterno: itemTasy.sequenciaProcedimentoInterno,
       pacienteNome: itemTasy.pacienteNome,
       documentoCpf: itemTasy.cpf || '00000000000',
       idade: itemTasy.idade || 40,
@@ -5021,13 +5033,12 @@ function iniciarTriagemExameTasy(index) {
     UIState.exames.unshift(exameLocal);
   }
 
-  // Atualiza contadores e grid da worklist
-  atualizarContadoresWorklist();
+  // Atualiza grid da worklist (que também recalcula os contadores automaticamente)
   renderizarWorklist();
 
   // Abre diretamente a tela de triagem preenchendo todos os dados do paciente
-  abrirTriagem(exameLocal.id);
+  await abrirTriagem(exameLocal.id);
 
-  showToast(`Triagem iniciada para ${exameLocal.pacienteNome} (Atendimento #${exameLocal.atendimento})! Posto: ${salaAtual}`, 'success');
+  showToast(`Triagem iniciada para ${exameLocal.pacienteNome} (Atend. #${exameLocal.atendimento}${exameLocal.sequenciaProcedimentoInterno ? ` | Seq. ${exameLocal.sequenciaProcedimentoInterno}` : ''})! Posto: ${salaAtual}`, 'success');
 }
 
