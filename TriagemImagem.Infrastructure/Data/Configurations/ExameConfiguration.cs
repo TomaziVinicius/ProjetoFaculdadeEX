@@ -45,6 +45,27 @@ public class ExameConfiguration : IEntityTypeConfiguration<Exame>
                .HasMaxLength(10)
                .IsRequired();
 
+        builder.Property(e => e.TipoFormulario)
+               .HasColumnName("tipo_formulario")
+               .HasMaxLength(50)
+               .IsRequired();
+
+        builder.Property(e => e.SegmentoLado)
+               .HasColumnName("segmento_lado")
+               .HasMaxLength(50);
+
+        builder.Property(e => e.MotivoExame)
+               .HasColumnName("motivo_exame")
+               .HasColumnType("text");
+
+        builder.Property(e => e.MedicoSolicitante)
+               .HasColumnName("medico_solicitante")
+               .HasMaxLength(100);
+
+        builder.Property(e => e.Convenio)
+               .HasColumnName("convenio")
+               .HasMaxLength(50);
+
         builder.Property(e => e.Sala)
                .HasColumnName("sala")
                .HasMaxLength(20)

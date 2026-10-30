@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TriagemImagem.Domain.Repositories;
 using TriagemImagem.Domain.Services;
 using TriagemImagem.Infrastructure.Repositories;
+using TriagemImagem.Infrastructure.Services;
 
 namespace TriagemImagem.Infrastructure.Extensions;
 
@@ -21,8 +22,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuditoriaRepository, AuditoriaRepository>();
         services.AddScoped<IWorklistLabRepository, WorklistLabRepository>();
 
-        // Serviços de Domínio Clínico
+        // Serviços de Domínio Clínico e Infraestrutura
         services.AddScoped<ISemaforoClinicoDomainService, SemaforoClinicoDomainService>();
+        services.AddScoped<ILdapService, LdapService>();
+        services.AddScoped<ITasyService, TasyService>();
 
         return services;
     }

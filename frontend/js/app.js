@@ -274,7 +274,14 @@ const UIState = {
   exameSelecionado: null,
   filtroModalidade: 'TODOS',
   buscaTexto: '',
-  respostas: {}
+  respostas: {},
+  workstation: {
+    ip: '192.1.2.120',
+    hostname: 'IMI-6691',
+    salaPadrao: 'RM-01',
+    descricao: 'RM-01 (192.1.2.120 - IMI-6691)'
+  },
+  examesTasyDia: []
 };
 
 // Inicialização Geral
@@ -285,6 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initAutenticacao();
   initNavegacao();
   initWorklist();
+  initTasyWorkstationIntegracao();
   initCalculadora();
   initAdminView();
   initAtalhosTeclado();
@@ -411,29 +419,20 @@ function initAutenticacao() {
     }
 
     try {
-      // 1. Tenta autenticar na API real .NET
+      // 1. Tenta autenticar na API real .NET (LDAP corporativo ou contingência local)
       const user = await ApiClient.login(username, password);
       UIState.usuarioLogado = user;
       UIState.online = true;
+      if (alertBox) alertBox.classList.add('hidden');
       entrar(user.nome, user.perfilDescricao || user.perfil);
+      showToast(`Bem-vindo(a), ${user.nome}!`, 'success');
     } catch (err) {
-      if (err.message && err.message.includes('401')) {
-        if (alertBox) {
-          alertBox.textContent = 'Usuário ou senha inválidos. Verifique suas credenciais.';
-          alertBox.classList.remove('hidden');
-        }
-        showToast('Login inválido.', 'error');
-      } else {
-        // Fallback offline caso o backend MySQL ainda não tenha sido iniciado
-        const perfil = username.includes('admin')
-          ? 'ADMIN'
-          : (username.includes('tec')
-            ? 'TÉCNICO'
-            : (username.includes('estagio') ? 'ESTAGIÁRIO' : 'BIOMÉDICO'));
-        UIState.usuarioLogado = { id: 1, nome: username, login: username, perfil: perfil };
-        entrar(username, perfil);
-        showToast('Iniciado em Modo Demonstração Offline.', 'info');
+      const msg = err.message || 'Usuário ou senha inválidos.';
+      if (alertBox) {
+        alertBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${msg}`;
+        alertBox.classList.remove('hidden');
       }
+      showToast(msg, 'error');
     } finally {
       if (btnSubmit) {
         btnSubmit.disabled = false;
@@ -753,19 +752,35 @@ async function abrirTriagem(exameId) {
   document.getElementById('triagemProcedimento').textContent = item.procedimento;
   document.getElementById('triagemSala').textContent = item.sala;
 
+  const elemMed = document.getElementById('triagemMedicoSolicitante');
+  if (elemMed) elemMed.textContent = item.medicoSolicitante || 'Não informado';
+  const elemConv = document.getElementById('triagemConvenio');
+  if (elemConv) elemConv.textContent = item.convenio || 'Particular / Não informado';
+
   const badgeMod = document.getElementById('triagemModalidadeBadge');
   badgeMod.textContent = item.modalidade;
   badgeMod.className = `badge-modalidade ${item.modalidade === 'TC' ? 'badge-tc' : 'badge-rm'}`;
 
-  // Calculadora
+  // Calculadora e Dados Antropométricos / Clínicos (Aferidos na Triagem)
   const inputPeso = document.getElementById('calcPesoInput');
+  const inputAltura = document.getElementById('calcAlturaInput');
+  const inputIndicacao = document.getElementById('calcIndicacaoClinicaInput');
   const inputCreat = document.getElementById('calcCreatininaInput');
+
   if (inputPeso) {
     inputPeso.value = item.pesoKg || 70.0;
     inputPeso.disabled = isConcluidoOuAssinado;
   }
+  if (inputAltura) {
+    inputAltura.value = item.alturaCm || 170;
+    inputAltura.disabled = isConcluidoOuAssinado;
+  }
+  if (inputIndicacao) {
+    inputIndicacao.value = item.indicacaoClinica || item.motivoExame || '';
+    inputIndicacao.disabled = isConcluidoOuAssinado;
+  }
   if (inputCreat) {
-    inputCreat.value = '';
+    inputCreat.value = item.creatinina || '';
     inputCreat.disabled = isConcluidoOuAssinado;
   }
   recalcularDose();
@@ -782,7 +797,7 @@ async function abrirTriagem(exameId) {
 
   const perguntas = obterPerguntasExameAtual();
   document.getElementById('checklistProtocoloTitulo').textContent = 
-    titulosEspecializados[tipoForm] || `Checklist de Segurança - ${item.modalidade}`;
+    titulosEspecializados[tipoForm] || PROTOCOLOS_CATALOGO_INFO[tipoForm]?.nome || `Checklist de Segurança - ${item.modalidade}`;
 
   const container = document.getElementById('checklistItemsContainer');
   container.innerHTML = perguntas.map((p, index) => {
@@ -1088,6 +1103,7 @@ function avaliarSemaforo() {
    ============================================================================== */
 function initCalculadora() {
   document.getElementById('calcPesoInput')?.addEventListener('input', recalcularDose);
+  document.getElementById('calcAlturaInput')?.addEventListener('input', recalcularDose);
   document.getElementById('calcCreatininaInput')?.addEventListener('input', recalcularDose);
 
   document.getElementById('btnSalvarRascunho')?.addEventListener('click', async () => {
@@ -1182,14 +1198,21 @@ async function persistirTriagem(liberar = false) {
   }));
 
   const obsElem = document.getElementById('txtObservacoesClinicas') || document.getElementById('triagemObservacoes');
+  const pesoDigitado = parseFloat(document.getElementById('calcPesoInput')?.value) || UIState.exameSelecionado.pesoKg || 70;
+  const alturaDigitada = parseFloat(document.getElementById('calcAlturaInput')?.value) || UIState.exameSelecionado.alturaCm || 170;
+  const indicacaoDigitada = document.getElementById('calcIndicacaoClinicaInput')?.value.trim() || UIState.exameSelecionado.indicacaoClinica || '';
+
+  UIState.exameSelecionado.pesoKg = pesoDigitado;
+  UIState.exameSelecionado.alturaCm = alturaDigitada;
+  UIState.exameSelecionado.indicacaoClinica = indicacaoDigitada;
 
   const payload = {
     exameId: UIState.exameSelecionado.id,
     usuarioResponsavelId: UIState.usuarioLogado.id || 1,
-    pesoKg: parseFloat(document.getElementById('calcPesoInput').value) || UIState.exameSelecionado.pesoKg,
+    pesoKg: pesoDigitado,
     volumeContrasteMl: parseFloat(document.getElementById('calcDoseResultado').textContent) || null,
     loteContraste: document.getElementById('calcLoteInput')?.value.trim() || null,
-    observacoesClinicas: obsElem?.value.trim() || null,
+    observacoesClinicas: [indicacaoDigitada ? `[Indicação Clínica: ${indicacaoDigitada}]` : '', obsElem?.value.trim() || ''].filter(Boolean).join('\n'),
     concluirELiberar: liberar,
     respostas: respostasDto
   };
@@ -1461,6 +1484,7 @@ function exibirModalArquivoSalvo(caminho) {
 
 function recalcularDose() {
   const peso = parseFloat(document.getElementById('calcPesoInput')?.value) || 0;
+  const altura = parseFloat(document.getElementById('calcAlturaInput')?.value) || 0;
   const isTc = UIState.exameSelecionado?.modalidade === 'TC';
 
   const cfg = JSON.parse(localStorage.getItem('cfg_clinica') || '{}');
@@ -1476,6 +1500,22 @@ function recalcularDose() {
   if (detalhesElem) {
     detalhesElem.textContent = 
       `Proporção clínica recomendada: ${proporcao} mL / kg (${isTc ? `Contraste Iodado (Teto ${teto} mL)` : `Gadolínio (Teto ${teto} mL)`}).`;
+  }
+
+  const elemImc = document.getElementById('calcImcResultado');
+  if (elemImc) {
+    if (peso > 0 && altura > 0) {
+      const altM = altura / 100;
+      const imc = Math.round((peso / (altM * altM)) * 10) / 10;
+      let diag = 'Eutrofia';
+      if (imc < 18.5) diag = 'Abaixo do peso';
+      else if (imc >= 25 && imc < 30) diag = 'Sobrepeso';
+      else if (imc >= 30 && imc < 35) diag = 'Obesidade Grau I';
+      else if (imc >= 35) diag = 'Obesidade Severa';
+      elemImc.innerHTML = `IMC Estimado: <strong>${imc.toFixed(1)} kg/m²</strong> (${diag})`;
+    } else {
+      elemImc.textContent = 'IMC: Informe peso e altura';
+    }
   }
 
   const resumoDose = document.getElementById('assinaturaVolumeResumo');
@@ -1790,6 +1830,28 @@ function initAdminView() {
     showToast('Parâmetros clínicos e tetos institucionais salvos com sucesso!', 'success');
   });
 
+  // Integração Oracle Tasy
+  document.getElementById('btnTestarConexaoTasy')?.addEventListener('click', () => carregarStatusTasyUI(true));
+  document.getElementById('btnFiltrarProcedimentosTasy')?.addEventListener('click', () => carregarProcedimentosTasyUI());
+  document.getElementById('btnLimparFiltrosTasy')?.addEventListener('click', () => {
+    const busca = document.getElementById('filtroTasyBusca');
+    const codigo = document.getElementById('filtroTasyCodigo');
+    const limite = document.getElementById('filtroTasyLimite');
+    if (busca) busca.value = '';
+    if (codigo) codigo.value = '';
+    if (limite) limite.value = '50';
+    carregarProcedimentosTasyUI();
+  });
+  document.getElementById('filtroTasyBusca')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); carregarProcedimentosTasyUI(); }
+  });
+  document.getElementById('filtroTasyCodigo')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); carregarProcedimentosTasyUI(); }
+  });
+  document.getElementById('filtroTasyLimite')?.addEventListener('change', () => carregarProcedimentosTasyUI());
+  document.getElementById('btnExecutarSqlTasy')?.addEventListener('click', () => executarSqlTasyUI());
+  document.getElementById('btnAbaTasySelect')?.addEventListener('click', () => alternarSubtabTasy('console'));
+
   // Inicialização do Seletor Customizado de Protocolos (Fundo Escuro e Bordas Arredondadas)
   initCustomSelectProtocolo();
 
@@ -1918,6 +1980,292 @@ async function carregarAdminView() {
 
   const selectProto = document.getElementById('selectProtocoloAdmin');
   renderizarDicionarioProtocolos(selectProto?.value || 'RM_COLUNA');
+
+  // Carrega status e procedimentos do Oracle Tasy
+  carregarStatusTasyUI(false);
+  carregarProcedimentosTasyUI();
+}
+
+/* ==============================================================================
+   INTEGRAÇÃO ORACLE TASY & PROCEDIMENTOS INTERNOS
+   ============================================================================== */
+
+function alternarSubtabTasy(tab) {
+  const painelProcedimentos = document.getElementById('tasyPainelProcedimentos');
+  const painelConsole = document.getElementById('tasyPainelConsole');
+  const btnSubtabProcedimentos = document.getElementById('btnSubtabTasyProcedimentos');
+  const btnSubtabConsole = document.getElementById('btnSubtabTasyConsole');
+
+  if (tab === 'console') {
+    if (painelProcedimentos) painelProcedimentos.style.display = 'none';
+    if (painelConsole) painelConsole.style.display = 'block';
+
+    if (btnSubtabProcedimentos) {
+      btnSubtabProcedimentos.style.background = 'transparent';
+      btnSubtabProcedimentos.style.color = 'var(--text-muted)';
+      btnSubtabProcedimentos.style.borderColor = 'transparent';
+    }
+    if (btnSubtabConsole) {
+      btnSubtabConsole.style.background = 'rgba(14, 165, 233, 0.15)';
+      btnSubtabConsole.style.color = 'var(--cyan-400)';
+      btnSubtabConsole.style.borderColor = 'var(--cyan-500)';
+    }
+
+    const editor = document.getElementById('tasySqlEditor');
+    if (editor && !editor.value.trim()) {
+      tasyCarregarPresetSql(1);
+    }
+  } else {
+    if (painelProcedimentos) painelProcedimentos.style.display = 'block';
+    if (painelConsole) painelConsole.style.display = 'none';
+
+    if (btnSubtabProcedimentos) {
+      btnSubtabProcedimentos.style.background = 'rgba(14, 165, 233, 0.15)';
+      btnSubtabProcedimentos.style.color = 'var(--cyan-400)';
+      btnSubtabProcedimentos.style.borderColor = 'var(--cyan-500)';
+    }
+    if (btnSubtabConsole) {
+      btnSubtabConsole.style.background = 'transparent';
+      btnSubtabConsole.style.color = 'var(--text-muted)';
+      btnSubtabConsole.style.borderColor = 'transparent';
+    }
+  }
+}
+window.alternarSubtabTasy = alternarSubtabTasy;
+
+function tasyCarregarPresetSql(id) {
+  const editor = document.getElementById('tasySqlEditor');
+  if (!editor) return;
+
+  switch (id) {
+    case 1:
+      editor.value = "SELECT NR_SEQUENCIA, CD_PROCEDIMENTO, DS_PROC_EXAME\nFROM TASY.IMI_EXAMES_PROC_INTERNO_V\nWHERE ROWNUM <= 20";
+      break;
+    case 2:
+      editor.value = "SELECT NR_SEQUENCIA, CD_PROCEDIMENTO, DS_PROC_EXAME\nFROM TASY.IMI_EXAMES_PROC_INTERNO_V\nWHERE UPPER(DS_PROC_EXAME) LIKE '%RESSONANCIA%' OR UPPER(DS_PROC_EXAME) LIKE 'RM %'\nORDER BY DS_PROC_EXAME ASC";
+      break;
+    case 3:
+      editor.value = "SELECT NR_SEQUENCIA, CD_PROCEDIMENTO, DS_PROC_EXAME\nFROM TASY.IMI_EXAMES_PROC_INTERNO_V\nWHERE UPPER(DS_PROC_EXAME) LIKE '%TOMOGRAFIA%' OR UPPER(DS_PROC_EXAME) LIKE 'TC %'\nORDER BY DS_PROC_EXAME ASC";
+      break;
+    case 4:
+      editor.value = "SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH\nFROM ALL_TAB_COLUMNS\nWHERE TABLE_NAME = 'IMI_EXAMES_PROC_INTERNO_V'\nORDER BY COLUMN_ID";
+      break;
+  }
+}
+window.tasyCarregarPresetSql = tasyCarregarPresetSql;
+
+async function carregarStatusTasyUI(isManual = false) {
+  const badge = document.getElementById('badgeTasyStatus');
+  const latencia = document.getElementById('tasyLatencia');
+  const versao = document.getElementById('tasyVersaoOracle');
+  const cardProc = document.getElementById('tasyTotalProcedimentosCard');
+  const statBancoTasy = document.getElementById('adminStatBancoTasy');
+  const statProcTasy = document.getElementById('adminStatProcedimentosTasy');
+
+  if (badge) {
+    badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Testando conexão...';
+    badge.style.background = 'rgba(14, 165, 233, 0.2)';
+    badge.style.color = 'var(--cyan-400)';
+    badge.style.borderColor = 'rgba(14, 165, 233, 0.4)';
+  }
+
+  try {
+    const status = await ApiClient.obterStatusTasy();
+
+    if (status.conectado) {
+      if (badge) {
+        badge.innerHTML = '<i class="fa-solid fa-circle-check" style="margin-right: 4px;"></i> Conectado';
+        badge.style.background = 'rgba(16, 185, 129, 0.2)';
+        badge.style.color = '#34d399';
+        badge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      }
+      if (latencia) {
+        latencia.textContent = `${status.latenciaMs} ms`;
+        latencia.style.color = status.latenciaMs < 100 ? 'var(--emerald-400)' : 'var(--amber-400)';
+      }
+      if (versao) versao.textContent = status.versaoOracle || 'Oracle Database 19c';
+      if (cardProc) cardProc.textContent = `${status.totalProcedimentos} na view`;
+      if (statBancoTasy) statBancoTasy.textContent = 'Online';
+      if (statProcTasy) statProcTasy.textContent = status.totalProcedimentos;
+
+      if (isManual) {
+        showToast(`Comunicação com o Oracle Tasy estabelecida com sucesso! (${status.latenciaMs}ms)`, 'success');
+      }
+    } else {
+      if (badge) {
+        badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="margin-right: 4px;"></i> Desconectado';
+        badge.style.background = 'rgba(239, 68, 68, 0.2)';
+        badge.style.color = '#f87171';
+        badge.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+      }
+      if (latencia) latencia.textContent = 'Falha';
+      if (versao) versao.textContent = status.mensagemErro || 'Erro de conexão';
+      if (statBancoTasy) statBancoTasy.textContent = 'Offline';
+
+      if (isManual) {
+        showToast(status.mensagemErro || 'Falha ao conectar no Oracle Tasy.', 'error');
+      }
+    }
+  } catch (err) {
+    if (badge) {
+      badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="margin-right: 4px;"></i> Erro';
+      badge.style.background = 'rgba(239, 68, 68, 0.2)';
+      badge.style.color = '#f87171';
+    }
+    if (statBancoTasy) statBancoTasy.textContent = 'Offline';
+    if (isManual) {
+      showToast(`Erro ao testar Oracle Tasy: ${err.message}`, 'error');
+    }
+  }
+}
+
+async function carregarProcedimentosTasyUI() {
+  const tbody = document.getElementById('tasyProcedimentosTableBody');
+  const contador = document.getElementById('tasyContadorResultados');
+  const buscaInput = document.getElementById('filtroTasyBusca');
+  const codigoInput = document.getElementById('filtroTasyCodigo');
+  const limiteInput = document.getElementById('filtroTasyLimite');
+
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--cyan-400); margin-bottom: 8px; display: block;"></i>Consultando procedimentos no Oracle Tasy...</td></tr>`;
+
+  try {
+    const filtros = {
+      busca: buscaInput?.value?.trim() || '',
+      codigo: codigoInput?.value?.trim() || '',
+      limite: parseInt(limiteInput?.value || '50', 10),
+      offset: 0
+    };
+
+    const res = await ApiClient.consultarProcedimentosTasy(filtros);
+    const itens = res.itens || [];
+    const total = res.total || 0;
+
+    if (contador) {
+      contador.innerHTML = `Exibindo <strong style="color: #fff;">${itens.length}</strong> de <strong style="color: var(--cyan-300);">${total}</strong> procedimentos encontrados`;
+    }
+
+    if (itens.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: var(--text-muted);"><i class="fa-solid fa-folder-open" style="font-size: 1.5rem; margin-bottom: 8px; display: block; opacity: 0.5;"></i>Nenhum procedimento encontrado para os filtros selecionados.</td></tr>`;
+      return;
+    }
+
+    const modalidadeColors = {
+      'RM': { bg: 'rgba(168, 85, 247, 0.18)', color: 'var(--purple-400)', border: 'rgba(168, 85, 247, 0.4)' },
+      'TC': { bg: 'rgba(14, 165, 233, 0.18)', color: 'var(--cyan-400)', border: 'rgba(14, 165, 233, 0.4)' },
+      'US': { bg: 'rgba(16, 185, 129, 0.18)', color: 'var(--emerald-400)', border: 'rgba(16, 185, 129, 0.4)' },
+      'RX': { bg: 'rgba(245, 158, 11, 0.18)', color: 'var(--amber-400)', border: 'rgba(245, 158, 11, 0.4)' },
+      'MMG': { bg: 'rgba(244, 63, 94, 0.18)', color: 'var(--rose-400)', border: 'rgba(244, 63, 94, 0.4)' },
+      'OUTROS': { bg: 'rgba(148, 163, 184, 0.18)', color: 'var(--text-secondary)', border: 'rgba(148, 163, 184, 0.3)' }
+    };
+
+    tbody.innerHTML = itens.map(item => {
+      const mod = item.modalidadeEstimada || 'OUTROS';
+      const c = modalidadeColors[mod] || modalidadeColors['OUTROS'];
+      const codSafe = item.codigoProcedimento || item.sequencia;
+
+      return `
+        <tr>
+          <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted);">${item.sequencia}</code></td>
+          <td><strong style="font-family: 'JetBrains Mono', monospace; color: var(--cyan-300);">${item.codigoProcedimento ?? '-'}</strong></td>
+          <td>
+            <span class="badge" style="background: ${c.bg}; color: ${c.color}; border: 1px solid ${c.border}; font-weight: 700; font-size: 0.72rem;">
+              ${mod}
+            </span>
+          </td>
+          <td style="font-weight: 500; color: #f8fafc;">
+            ${item.descricao}
+          </td>
+          <td style="text-align: right;">
+            <button type="button" class="btn btn--secondary" onclick="copiarCodigoTasy('${codSafe}', '${item.descricao.replace(/'/g, "\\'")}')" title="Copiar código do procedimento" style="font-size: 0.75rem; padding: 4px 8px;">
+              <i class="fa-regular fa-copy"></i> Copiar
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--rose-400);"><i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i>Erro ao carregar procedimentos: ${err.message}</td></tr>`;
+  }
+}
+
+function copiarCodigoTasy(codigo, descricao) {
+  navigator.clipboard.writeText(codigo).then(() => {
+    showToast(`Código ${codigo} copiado para a área de transferência!`, 'success');
+  }).catch(() => {
+    showToast(`Código: ${codigo}`, 'info');
+  });
+}
+window.copiarCodigoTasy = copiarCodigoTasy;
+
+async function executarSqlTasyUI() {
+  const editor = document.getElementById('tasySqlEditor');
+  const btn = document.getElementById('btnExecutarSqlTasy');
+  const container = document.getElementById('tasyQueryResultadoContainer');
+  const thead = document.getElementById('tasyQueryDynamicThead');
+  const tbody = document.getElementById('tasyQueryDynamicTbody');
+  const meta = document.getElementById('tasyQueryMeta');
+
+  if (!editor || !editor.value.trim()) {
+    showToast('Informe uma consulta SQL SELECT para executar.', 'warning');
+    return;
+  }
+
+  const query = editor.value.trim();
+  const btnOriginal = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Executando...';
+  }
+
+  try {
+    const res = await ApiClient.executarQueryTasy(query, 100);
+
+    if (container) container.style.display = 'block';
+
+    if (!res.sucesso) {
+      if (meta) meta.innerHTML = `<span style="color: var(--rose-400);"><i class="fa-solid fa-circle-xmark"></i> Erro: ${res.mensagemErro} (${res.tempoExecucaoMs}ms)</span>`;
+      if (thead) thead.innerHTML = '';
+      if (tbody) tbody.innerHTML = `<tr><td style="color: var(--rose-400); padding: 16px;">${res.mensagemErro}</td></tr>`;
+      showToast(`Falha na consulta: ${res.mensagemErro}`, 'error');
+      return;
+    }
+
+    if (meta) {
+      meta.innerHTML = `<span style="color: var(--emerald-400);"><i class="fa-solid fa-circle-check"></i> Consulta executada com sucesso:</span> <strong style="color: #fff;">${res.totalLinhas}</strong> linhas retornadas em <strong style="color: var(--cyan-300);">${res.tempoExecucaoMs}ms</strong>`;
+    }
+
+    if (res.totalLinhas === 0) {
+      if (thead) thead.innerHTML = `<tr>${res.colunas.map(c => `<th>${c}</th>`).join('')}</tr>`;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="${res.colunas.length || 1}" style="text-align: center; padding: 20px; color: var(--text-muted);">Nenhum registro retornado.</td></tr>`;
+      showToast('Consulta executada (0 registros).', 'info');
+      return;
+    }
+
+    if (thead) {
+      thead.innerHTML = `<tr>${res.colunas.map(c => `<th>${c}</th>`).join('')}</tr>`;
+    }
+
+    if (tbody) {
+      tbody.innerHTML = res.linhas.map(row => {
+        return `<tr>${res.colunas.map(col => {
+          const val = row[col] ?? row[col.toLowerCase()] ?? row[col.toUpperCase()];
+          return `<td style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;">${val !== null && val !== undefined ? String(val) : '<span style="color: var(--text-muted); font-style: italic;">NULL</span>'}</td>`;
+        }).join('')}</tr>`;
+      }).join('');
+    }
+
+    showToast(`Consulta concluída: ${res.totalLinhas} registros em ${res.tempoExecucaoMs}ms.`, 'success');
+  } catch (err) {
+    if (meta) meta.innerHTML = `<span style="color: var(--rose-400);"><i class="fa-solid fa-circle-xmark"></i> Erro: ${err.message}</span>`;
+    showToast(`Erro na requisição: ${err.message}`, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = btnOriginal;
+    }
+  }
 }
 
 const METADATA_REGRAS_CLINICAS = {
@@ -2222,7 +2570,7 @@ function renderizarDicionarioProtocolos(protocoloId) {
 
   tbody.innerHTML = '';
 
-  perguntas.forEach(p => {
+  perguntas.forEach((p, idx) => {
     const meta = METADATA_REGRAS_CLINICAS[p.codigo] || {
       tipo: p.impeditivo ? 'IMPEDITIVA' : 'INFORMATIVA',
       gatilho: p.impeditivo ? 'Se SIM -> 🔴 Bloqueio de Segurança' : 'Critério informativo clínico',
@@ -2245,6 +2593,7 @@ function renderizarDicionarioProtocolos(protocoloId) {
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td style="text-align: center; font-family: var(--font-mono); font-weight: 700; color: var(--cyan-400); font-size: 0.82rem;">#${idx + 1}</td>
       <td><code style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--cyan-400); background: rgba(56,189,248,0.1); padding: 3px 8px; border-radius: 4px;">${p.codigo}</code></td>
       <td style="font-size: 0.88rem; font-weight: 500; color: #fff;">${p.enunciado}</td>
       <td><span class="badge-status ${badgeClass}">${labelTipo}</span></td>
@@ -2514,12 +2863,29 @@ function adminAbrirModalVincularProcedimento(protocoloId) {
       </div>
 
       <form id="formVincularProcModal" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <!-- Busca Rápida no Tasy -->
+        <div style="background: rgba(15, 23, 42, 0.45); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="font-size: 0.78rem; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: space-between;">
+            <span style="display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-database" style="color: var(--amber-400);"></i> Buscar na Base do Tasy (Oracle):
+            </span>
+            <span style="font-size: 0.7rem; color: var(--text-muted);">Preenchimento automático</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="vincularTasyBusca" class="form-input" placeholder="Digite nome ou código no Tasy..." style="font-size: 0.8rem; padding: 6px 10px;">
+            <button type="button" class="btn btn--secondary" id="btnVincularTasyBuscar" style="font-size: 0.75rem; padding: 6px 12px; white-space: nowrap;">
+              <i class="fa-solid fa-search"></i> Buscar
+            </button>
+          </div>
+          <div id="vincularTasyResultados" style="display: none; max-height: 120px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 6px; padding: 4px; display: flex; flex-direction: column; gap: 4px;"></div>
+        </div>
+
         <div class="form-field">
           <label class="form-label" for="vincularProcCodigo">
-            <i class="fa-solid fa-barcode" style="color: var(--cyan-400);"></i> Código TUSS / RIS (* Obrigatório & Único):
+            <i class="fa-solid fa-barcode" style="color: var(--cyan-400);"></i> Código TUSS / RIS / Tasy (* Obrigatório &amp; Único):
           </label>
           <input type="text" id="vincularProcCodigo" class="form-input" placeholder="Ex: 41101999 (TUSS ANS) ou RM_OMBRO (RIS)" required>
-          <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px;">Validação estrita: não são permitidos códigos repetidos em nenhum protocolo.</span>
+          <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px;">Validação de conformidade: identificador único do procedimento.</span>
         </div>
 
         <div class="form-field">
@@ -2549,6 +2915,61 @@ function adminAbrirModalVincularProcedimento(protocoloId) {
   `;
 
   document.body.appendChild(container);
+
+  // Integração com busca no Tasy
+  const inputBuscaTasy = document.getElementById('vincularTasyBusca');
+  const btnBuscarTasy = document.getElementById('btnVincularTasyBuscar');
+  const divResultadosTasy = document.getElementById('vincularTasyResultados');
+
+  const buscarNoTasyModal = async () => {
+    const termo = inputBuscaTasy.value.trim();
+    if (!termo) return;
+    btnBuscarTasy.disabled = true;
+    divResultadosTasy.style.display = 'flex';
+    divResultadosTasy.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); padding: 6px; text-align: center;"><i class="fa-solid fa-spinner fa-spin"></i> Consultando Tasy...</div>';
+    try {
+      const res = await ApiClient.consultarProcedimentosTasy({ busca: termo, limite: 15 });
+      const itens = res.itens || [];
+      if (itens.length === 0) {
+        divResultadosTasy.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); padding: 6px; text-align: center;">Nenhum exame encontrado no Tasy.</div>';
+        return;
+      }
+      divResultadosTasy.innerHTML = itens.map(item => `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 4px 8px; cursor: pointer;" onclick="window._selecionarTasyParaVincular('${encodeURIComponent(JSON.stringify(item))}')">
+          <div style="min-width: 0;">
+            <div style="font-size: 0.78rem; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.descricao}</div>
+            <div style="font-size: 0.68rem; color: var(--cyan-400); font-family: var(--font-mono);">${item.codigoProcedimento || item.sequencia}</div>
+          </div>
+          <span style="font-size: 0.72rem; color: var(--cyan-300); font-weight: 700;">+ Selecionar</span>
+        </div>
+      `).join('');
+    } catch (err) {
+      divResultadosTasy.innerHTML = `<div style="font-size: 0.75rem; color: #f87171; padding: 6px;">Erro: ${err.message}</div>`;
+    } finally {
+      btnBuscarTasy.disabled = false;
+    }
+  };
+
+  btnBuscarTasy.addEventListener('click', buscarNoTasyModal);
+  inputBuscaTasy.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      buscarNoTasyModal();
+    }
+  });
+
+  window._selecionarTasyParaVincular = (jsonStr) => {
+    try {
+      const item = JSON.parse(decodeURIComponent(jsonStr));
+      document.getElementById('vincularProcCodigo').value = item.codigoProcedimento || item.sequencia;
+      document.getElementById('vincularProcNome').value = item.descricao;
+      document.getElementById('vincularProcRegiao').value = extrairRegiao(item.descricao) || 'Geral';
+      divResultadosTasy.style.display = 'none';
+      showToast(`Procedimento "${item.descricao}" selecionado!`, 'info');
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   document.getElementById('formVincularProcModal').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -3558,6 +3979,15 @@ const PERGUNTAS_PADRAO_TC = [
   }
 ];
 
+function extrairRegiao(descricao) {
+  if (!descricao) return 'Geral';
+  const match = descricao.match(/(?:US|TC|CT|RM|MR|RX)\s*-\s*([^-(]+)/i);
+  if (match && match[1]) return match[1].trim();
+  const partes = descricao.split('-');
+  if (partes.length > 1) return partes[1].split('(')[0].trim();
+  return descricao.split('(')[0].trim().slice(0, 30);
+}
+
 function adminAbrirModalNovoProtocolo() {
   document.getElementById('modalNovoProtocoloAdmin')?.remove();
 
@@ -3565,7 +3995,7 @@ function adminAbrirModalNovoProtocolo() {
   container.id = 'modalNovoProtocoloAdmin';
   container.style.position = 'fixed';
   container.style.inset = '0';
-  container.style.background = 'rgba(10, 14, 23, 0.88)';
+  container.style.background = 'rgba(10, 14, 23, 0.9)';
   container.style.backdropFilter = 'blur(12px)';
   container.style.display = 'flex';
   container.style.alignItems = 'center';
@@ -3573,16 +4003,16 @@ function adminAbrirModalNovoProtocolo() {
   container.style.zIndex = '9999';
 
   container.innerHTML = `
-    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 820px; width: 95%; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
+    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 900px; width: 95%; max-height: 94vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
       <!-- Cabeçalho -->
       <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+          <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
             <i class="fa-solid fa-folder-plus"></i>
           </div>
           <div>
-            <h3 style="font-family: var(--font-title); font-size: 1.2rem; color: #fff;">Novo Protocolo Anatômico & Regras Clínicas</h3>
-            <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">Cadastre uma região inédita (ex: Crânio, Joelho, Face), defina seu checklist e vincule procedimentos TUSS.</p>
+            <h3 style="font-family: var(--font-title); font-size: 1.25rem; font-weight: 800; color: #fff;">Novo Protocolo &amp; Formulário de Triagem</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">Vincule procedimentos oficiais do Tasy e defina a ordem de apresentação do checklist clínico.</p>
           </div>
         </div>
         <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalNovoProtocoloAdmin').remove()" style="padding: 6px 10px;">
@@ -3601,11 +4031,11 @@ function adminAbrirModalNovoProtocolo() {
 
           <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
             <div class="form-field">
-              <label class="form-label" for="novoProtoNome">Nome do Protocolo Anatômico:</label>
-              <input type="text" id="novoProtoNome" class="form-input" placeholder="Ex: RM Crânio / Encéfalo (Neurológico)" required>
+              <label class="form-label" for="novoProtoNome">Nome do Protocolo Anatômico / Formulário:</label>
+              <input type="text" id="novoProtoNome" class="form-input" placeholder="Ex: RM Crânio / Encéfalo ou TC Abdômen Total" required>
             </div>
             <div class="form-field">
-              <label class="form-label" for="novoProtoCodigo">Código Identificador (ID):</label>
+              <label class="form-label" for="novoProtoCodigo">Código Identificador (ID do Formulário):</label>
               <input type="text" id="novoProtoCodigo" class="form-input" placeholder="Ex: RM_CRANIO" style="font-family: var(--font-mono); text-transform: uppercase;" required>
             </div>
           </div>
@@ -3616,15 +4046,17 @@ function adminAbrirModalNovoProtocolo() {
               <select id="novoProtoModalidade" class="form-input" style="cursor: pointer;">
                 <option value="RM">Ressonância Magnética (RM)</option>
                 <option value="TC">Tomografia Computadorizada (TC)</option>
+                <option value="US">Ultrassonografia (US)</option>
+                <option value="RX">Radiologia Geral (RX)</option>
               </select>
             </div>
             <div class="form-field">
               <label class="form-label" for="novoProtoIcone">Ícone Visual:</label>
               <select id="novoProtoIcone" class="form-input" style="cursor: pointer;">
                 <option value="fa-brain">🧠 Cérebro / Crânio (Neurologia)</option>
-                <option value="fa-bone">🦴 Ossos / Articulações / Joelho</option>
-                <option value="fa-hand-dots">✋ Membro Superior (Punho / Cotovelo / Ombro)</option>
-                <option value="fa-person">🚶 Membro Inferior / Bacia / Perna</option>
+                <option value="fa-bone">🦴 Ossos / Articulações / Coluna</option>
+                <option value="fa-hand-dots">✋ Membro Superior (Ombro / Braço / Punho)</option>
+                <option value="fa-person">🚶 Membro Inferior / Bacia / Joelho</option>
                 <option value="fa-lungs">🫁 Tórax / Pulmão / Mediastino</option>
                 <option value="fa-circle-radiation">☢️ Abdômen / Pelve Total</option>
                 <option value="fa-heart-pulse">❤️ Cardíaco / Vascular / Angio</option>
@@ -3635,60 +4067,106 @@ function adminAbrirModalNovoProtocolo() {
           </div>
         </div>
 
-        <!-- 2. Checklist Base de Segurança da Modalidade -->
-        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <div style="font-size: 0.88rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
-              <i class="fa-solid fa-shield-halved" style="color: var(--emerald-400);"></i> 2. Regras de Segurança Universal (Modalidade)
-            </div>
-            <span style="font-size: 0.75rem; color: var(--text-muted);">Recomendado manter todas ativas para proteção do paciente</span>
-          </div>
-          <div id="containerPerguntasBaseModal" style="display: flex; flex-direction: column; gap: 8px;">
-            <!-- Renderizado dinamicamente de acordo com a modalidade selecionada -->
-          </div>
-        </div>
-
-        <!-- 3. Perguntas Específicas da Região Anatômica -->
-        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+        <!-- 2. Procedimentos Integrados do Tasy (Substituição de TUSS Manual) -->
+        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <div>
               <div style="font-size: 0.88rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-clipboard-question" style="color: var(--cyan-400);"></i> 3. Perguntas Especializadas da Região Anatômica
+                <i class="fa-solid fa-database" style="color: var(--amber-400);"></i> 2. Procedimentos Oficiais do Tasy (Banco Oracle 19c)
               </div>
-              <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Adicione critérios específicos desta anatomia (ex: válvula DVP no crânio, lesão de menisco no joelho).</p>
+              <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
+                Selecione na base do Tasy (<code style="color: var(--cyan-300);">TASY.IMI_EXAMES_PROC_INTERNO_V</code>) quais procedimentos correspondem a este protocolo.
+              </p>
             </div>
-            <button type="button" class="btn btn--secondary" id="btnAdicionarPerguntaEspecifica" style="font-size: 0.8rem; padding: 5px 12px; border-color: rgba(56, 189, 248, 0.4); color: var(--cyan-400);">
-              <i class="fa-solid fa-plus" style="margin-right: 4px;"></i> Adicionar Pergunta
+            <span class="badge" id="badgeTotalTasyVinculados" style="background: rgba(14, 165, 233, 0.15); color: var(--cyan-400); border: 1px solid var(--cyan-500); font-size: 0.75rem; font-weight: 700;">
+              0 Procedimento(s) Vinculado(s)
+            </span>
+          </div>
+
+          <!-- Barra de Busca no Tasy -->
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <div style="flex: 1; position: relative;">
+              <input type="text" id="novoProtoTasyBusca" class="form-input" placeholder="Pesquisar exames no Tasy (ex: Crânio, Joelho, Tórax, Coluna, 40901211)..." style="width: 100%; padding-left: 36px;">
+              <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.85rem;"></i>
+            </div>
+            <button type="button" class="btn btn--secondary" id="btnNovoProtoTasyBuscar" style="padding: 9px 16px; font-size: 0.85rem; white-space: nowrap;">
+              <i class="fa-solid fa-search"></i> Buscar no Tasy
             </button>
           </div>
 
-          <div id="containerPerguntasEspecificas" style="display: flex; flex-direction: column; gap: 12px;">
-            <!-- Linhas de perguntas dinâmicas adicionadas aqui -->
+          <!-- Resultados da busca no Tasy -->
+          <div id="novoProtoTasyResultadosContainer" style="display: none; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-subtle); border-radius: 8px; max-height: 180px; overflow-y: auto; padding: 6px;">
+            <div id="novoProtoTasyResultadosList" style="display: flex; flex-direction: column; gap: 6px;"></div>
+          </div>
+
+          <!-- Lista de Procedimentos Vinculados Selecionados -->
+          <div style="margin-top: 4px;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 6px;">
+              Procedimentos Vinculados a este Protocolo:
+            </div>
+            <div id="novoProtoTasySelecionadosList" style="display: flex; flex-direction: column; gap: 6px; min-height: 48px; background: rgba(0, 0, 0, 0.2); border: 1px dashed var(--border-subtle); border-radius: 8px; padding: 8px;">
+              <div id="msgNenhumTasyVinculado" style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px;">
+                <i class="fa-solid fa-hand-pointer" style="margin-right: 6px; color: var(--amber-400);"></i>
+                Nenhum procedimento do Tasy vinculado ainda. Utilize o campo de busca acima e clique em <strong>+ Vincular</strong>.
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- 4. Procedimento TUSS / RIS Integrado (* Obrigatório & Único) -->
-        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px;">
-          <div style="font-size: 0.88rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-            <i class="fa-solid fa-list-check" style="color: var(--amber-400);"></i> 4. Procedimento TUSS / RIS Integrado (* Obrigatório &amp; Não Repetido)
+        <!-- 3. Checklist Clínico & Ordem de Apresentação -->
+        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <div style="font-size: 0.88rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-list-ol" style="color: var(--cyan-400);"></i> 3. Checklist Clínico &amp; Ordem de Apresentação
+              </div>
+              <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
+                Selecione as perguntas genéricas essenciais e organize a sequência exata de exibição usando os botões <strong>▲ / ▼</strong>.
+              </p>
+            </div>
+            <button type="button" class="btn btn--secondary" id="btnAdicionarPerguntaCustom" style="font-size: 0.8rem; padding: 6px 14px; border-color: rgba(56, 189, 248, 0.4); color: var(--cyan-400);">
+              <i class="fa-solid fa-plus" style="margin-right: 4px;"></i> + Pergunta Especializada
+            </button>
           </div>
-          <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px;">
-            Todo protocolo requer obrigatoriamente um código TUSS (8 dígitos) ou RIS válido e não repetido no catálogo.
-          </p>
 
-          <div style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 12px;">
-            <div class="form-field">
-              <label class="form-label" for="novoProtoTussCodigo">Código TUSS / RIS (* Obrigatório):</label>
-              <input type="text" id="novoProtoTussCodigo" class="form-input" placeholder="Ex: 41101014 ou RMCRAN" required>
+          <!-- Banco de Perguntas Genéricas (Agilizador Rápido) -->
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+              <span style="font-size: 0.78rem; font-weight: 700; color: #fff; text-transform: uppercase;">
+                <i class="fa-solid fa-bolt" style="color: var(--amber-400); margin-right: 6px;"></i> Perguntas Genéricas de Segurança (Adição Rápida):
+              </span>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn--secondary" id="btnMarcarTodasGenericas" style="font-size: 0.72rem; padding: 3px 8px;">
+                  + Incluir Todas
+                </button>
+                <button type="button" class="btn btn--secondary" id="btnDesmarcarTodasGenericas" style="font-size: 0.72rem; padding: 3px 8px;">
+                  - Limpar Todas
+                </button>
+              </div>
             </div>
-            <div class="form-field">
-              <label class="form-label" for="novoProtoTussNome">Nome do Procedimento Médico (* Obrigatório):</label>
-              <input type="text" id="novoProtoTussNome" class="form-input" placeholder="Ex: RM de Crânio / Encéfalo com Contraste" required>
+            <div id="containerPerguntasGenericasToggles" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px;">
+              <!-- Checkboxes das perguntas genéricas geradas dinamicamente -->
             </div>
-            <div class="form-field">
-              <label class="form-label" for="novoProtoTussRegiao">Região Anatômica (* Obrigatório):</label>
-              <input type="text" id="novoProtoTussRegiao" class="form-input" placeholder="Ex: Crânio" required>
+          </div>
+
+          <!-- Lista Ativa e Reordenável de Perguntas do Checklist -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">
+                Ordem de Exibição no Questionário (<span id="contadorPerguntasTotal">0</span> perguntas):
+              </span>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">
+                <i class="fa-solid fa-arrow-down-short-wide"></i> O questionário será exibido nesta sequência
+              </span>
             </div>
+            <div id="containerPerguntasOrdenadas" style="display: flex; flex-direction: column; gap: 8px;">
+              <!-- Linhas com controle de ordem ▲ ▼, posição numérica, tipo e enunciado -->
+            </div>
+          </div>
+
+          <!-- Resumo de Risco do Semáforo -->
+          <div id="resumoSemaforoNovoProto" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 14px; background: rgba(0, 0, 0, 0.25); border-radius: 8px; font-size: 0.8rem;">
+            <!-- Contadores de Impeditivas, Alertas, Informativas -->
           </div>
         </div>
 
@@ -3697,8 +4175,8 @@ function adminAbrirModalNovoProtocolo() {
           <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalNovoProtocoloAdmin').remove()">
             Cancelar
           </button>
-          <button type="submit" class="btn btn--primary" id="btnSalvarNovoProtocolo" style="padding: 8px 20px;">
-            <i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo
+          <button type="submit" class="btn btn--primary" id="btnSalvarNovoProtocolo" style="padding: 9px 24px; font-size: 0.9rem;">
+            <i class="fa-solid fa-check"></i> Salvar &amp; Ativar Protocolo
           </button>
         </div>
       </form>
@@ -3707,251 +4185,482 @@ function adminAbrirModalNovoProtocolo() {
 
   document.body.appendChild(container);
 
-  // Renderiza perguntas base iniciais
-  const renderizarPerguntasBase = (modalidade) => {
-    const containerBase = document.getElementById('containerPerguntasBaseModal');
-    if (!containerBase) return;
-    const lista = modalidade === 'TC' ? PERGUNTAS_PADRAO_TC : PERGUNTAS_PADRAO_RM;
-
-    containerBase.innerHTML = lista.map((p, idx) => {
-      const badgeClass = p.tipo === 'IMPEDITIVA' ? 'status-bloqueado' : (p.tipo === 'ALERTA' ? 'status-aguardando' : 'status-liberado');
-      const badgeTexto = p.tipo === 'IMPEDITIVA' ? '🔴 Impeditiva' : (p.tipo === 'ALERTA' ? '🟡 Alerta' : '🟢 Informativa');
-
-      return `
-        <label style="display: flex; align-items: flex-start; gap: 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 8px 12px; cursor: pointer;">
-          <input type="checkbox" class="chk-pergunta-base" data-idx="${idx}" checked style="margin-top: 3px; accent-color: var(--cyan-400); cursor: pointer;">
-          <div style="flex: 1;">
-            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-              <span style="font-size: 0.84rem; font-weight: 500; color: #fff;">${p.enunciado}</span>
-              <span class="badge-status ${badgeClass}" style="font-size: 0.68rem;">${badgeTexto}</span>
-            </div>
-            <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">
-              <strong>Fundamento:</strong> ${p.fundamento}
-            </div>
-          </div>
-        </label>
-      `;
-    }).join('');
-  };
-
-  renderizarPerguntasBase('RM');
-
-  // Ao alterar a modalidade, atualiza perguntas base e sugestão de código
-  const selectMod = document.getElementById('novoProtoModalidade');
+  // Estados locais do modal
   const inputNome = document.getElementById('novoProtoNome');
   const inputCodigo = document.getElementById('novoProtoCodigo');
-  const inputTussNome = document.getElementById('novoProtoTussNome');
-  const inputTussRegiao = document.getElementById('novoProtoTussRegiao');
+  const selectMod = document.getElementById('novoProtoModalidade');
+  const selectIcone = document.getElementById('novoProtoIcone');
 
+  let procedimentosSelecionadosTasy = [];
+  let perguntasAtivas = [];
+  let contadorCustom = 0;
+
+  // Sugestão automática de código identificador ao digitar o nome
   const atualizarSugestaoCodigo = () => {
     const mod = selectMod.value;
     const nome = inputNome.value.trim();
     if (!nome) return;
 
-    // Remove acentos e caracteres especiais
     const limpo = nome
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toUpperCase()
-      .replace(/^(RM|TC)\s*/, '')
+      .replace(/^(RM|TC|US|RX)\s*/, '')
       .replace(/[^A-Z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '');
 
     inputCodigo.value = `${mod}_${limpo}`.slice(0, 25);
-    if (!inputTussNome.value) inputTussNome.value = nome;
-    if (!inputTussRegiao.value) {
-      const palavras = limpo.split('_');
-      inputTussRegiao.value = palavras[0] ? palavras[0].charAt(0).toUpperCase() + palavras[0].slice(1).toLowerCase() : '';
-    }
   };
 
   inputNome.addEventListener('input', atualizarSugestaoCodigo);
-  selectMod.addEventListener('change', () => {
-    renderizarPerguntasBase(selectMod.value);
-    atualizarSugestaoCodigo();
-  });
 
-  // Contador de perguntas dinâmicas
-  let contadorPerguntasCustom = 0;
-  const containerPerguntasEspecificas = document.getElementById('containerPerguntasEspecificas');
+  // ---------------------------------------------------------------------------
+  // A. INTEGRAÇÃO TASY: BUSCA E SELEÇÃO DE PROCEDIMENTOS
+  // ---------------------------------------------------------------------------
+  const inputTasyBusca = document.getElementById('novoProtoTasyBusca');
+  const btnTasyBuscar = document.getElementById('btnNovoProtoTasyBuscar');
+  const resultadosContainer = document.getElementById('novoProtoTasyResultadosContainer');
+  const resultadosList = document.getElementById('novoProtoTasyResultadosList');
+  const selecionadosList = document.getElementById('novoProtoTasySelecionadosList');
+  const badgeTotalVinculados = document.getElementById('badgeTotalTasyVinculados');
 
-  const adicionarLinhaPerguntaAnatomica = (enunciadoPadrao = '', tipoPadrao = 'IMPEDITIVA', gatilhoPadrao = '', fundamentoPadrao = '') => {
-    contadorPerguntasCustom++;
-    const rowId = `pergunta_custom_${contadorPerguntasCustom}`;
-    const card = document.createElement('div');
-    card.id = rowId;
-    card.style.background = 'rgba(15, 23, 42, 0.8)';
-    card.style.border = '1px solid rgba(56, 189, 248, 0.3)';
-    card.style.borderRadius = '8px';
-    card.style.padding = '12px 14px';
-    card.style.display = 'flex';
-    card.style.flexDirection = 'column';
-    card.style.gap = '10px';
+  const renderizarSelecionadosTasy = () => {
+    badgeTotalVinculados.textContent = `${procedimentosSelecionadosTasy.length} Procedimento(s) Vinculado(s)`;
 
-    card.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 0.78rem; font-family: var(--font-mono); color: var(--cyan-400); font-weight: 700;">
-          <i class="fa-solid fa-circle-question"></i> Pergunta Anatômica #${contadorPerguntasCustom}
-        </span>
-        <button type="button" title="Remover Pergunta" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 2px 6px; font-size: 0.85rem;" onclick="document.getElementById('${rowId}')?.remove()">
-          <i class="fa-solid fa-trash-can"></i> Remover
-        </button>
-      </div>
-
-      <div style="display: grid; grid-template-columns: 3fr 1.5fr; gap: 10px;">
-        <div class="form-field">
-          <label class="form-label" style="font-size: 0.75rem;">Enunciado da Pergunta Clínica:</label>
-          <input type="text" class="form-input custom-p-enunciado" value="${enunciadoPadrao}" placeholder="Ex: Possui derivação ventrículo-peritoneal (DVP) com regulagem magnética?" required>
+    if (procedimentosSelecionadosTasy.length === 0) {
+      selecionadosList.innerHTML = `
+        <div id="msgNenhumTasyVinculado" style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px;">
+          <i class="fa-solid fa-hand-pointer" style="margin-right: 6px; color: var(--amber-400);"></i>
+          Nenhum procedimento do Tasy vinculado ainda. Utilize o campo de busca acima e clique em <strong>+ Vincular</strong>.
         </div>
-        <div class="form-field">
-          <label class="form-label" style="font-size: 0.75rem;">Classificação do Semáforo:</label>
-          <select class="form-input custom-p-tipo" style="cursor: pointer;">
-            <option value="IMPEDITIVA" ${tipoPadrao === 'IMPEDITIVA' ? 'selected' : ''}>🔴 Impeditiva (Bloqueio Automático)</option>
-            <option value="ALERTA" ${tipoPadrao === 'ALERTA' ? 'selected' : ''}>🟡 Alerta Operacional (Amarelo)</option>
-            <option value="INFORMATIVA" ${tipoPadrao === 'INFORMATIVA' ? 'selected' : ''}>🟢 Critério Informativo Clínico</option>
-          </select>
-        </div>
-      </div>
+      `;
+      return;
+    }
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div class="form-field">
-          <label class="form-label" style="font-size: 0.75rem;">Gatilho no Semáforo:</label>
-          <input type="text" class="form-input custom-p-gatilho" value="${gatilhoPadrao}" placeholder="Ex: Se SIM -> Bloqueio de Segurança">
+    selecionadosList.innerHTML = procedimentosSelecionadosTasy.map((proc, idx) => {
+      const codExibicao = proc.codigoProcedimento ? `Cód: ${proc.codigoProcedimento}` : `Seq: ${proc.sequencia}`;
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 8px 12px;">
+          <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+            <span class="badge" style="background: rgba(14, 165, 233, 0.15); color: var(--cyan-400); border: 1px solid var(--cyan-500); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; font-weight: 700;">
+              ${codExibicao}
+            </span>
+            <span style="font-size: 0.84rem; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${proc.descricao}
+            </span>
+            <span class="badge" style="background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); font-size: 0.68rem;">
+              ${proc.modalidadeEstimada || 'PROCEDIMENTO'}
+            </span>
+          </div>
+          <button type="button" onclick="window._removerProcTasyNovoProto(${idx})" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 4px 8px; font-size: 0.85rem;" title="Desvincular procedimento">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
         </div>
-        <div class="form-field">
-          <label class="form-label" style="font-size: 0.75rem;">Fundamento Radiológico / Justificativa:</label>
-          <input type="text" class="form-input custom-p-fundamento" value="${fundamentoPadrao}" placeholder="Ex: Válvulas programáveis podem descalibrar sob campo de 1.5T/3.0T.">
-        </div>
-      </div>
-    `;
-
-    containerPerguntasEspecificas.appendChild(card);
+      `;
+    }).join('');
   };
 
-  document.getElementById('btnAdicionarPerguntaEspecifica').addEventListener('click', () => {
-    adicionarLinhaPerguntaAnatomica();
+  window._removerProcTasyNovoProto = (index) => {
+    procedimentosSelecionadosTasy.splice(index, 1);
+    renderizarSelecionadosTasy();
+  };
+
+  window._vincularProcTasyNovoProto = (procJsonStr) => {
+    try {
+      const proc = JSON.parse(decodeURIComponent(procJsonStr));
+      const jaExiste = procedimentosSelecionadosTasy.some(p => p.sequencia === proc.sequencia || (proc.codigoProcedimento && p.codigoProcedimento === proc.codigoProcedimento));
+      if (jaExiste) {
+        showToast('Este procedimento já está vinculado ao formulário.', 'info');
+        return;
+      }
+      procedimentosSelecionadosTasy.push(proc);
+      renderizarSelecionadosTasy();
+      showToast(`Procedimento "${proc.descricao}" vinculado!`, 'success');
+
+      // Auto-preenche o nome do formulário caso ainda não tenha sido digitado
+      if (!inputNome.value.trim()) {
+        inputNome.value = proc.descricao;
+        atualizarSugestaoCodigo();
+      }
+    } catch (err) {
+      console.error('Erro ao vincular proc Tasy:', err);
+    }
+  };
+
+  const executarBuscaTasy = async () => {
+    const termo = inputTasyBusca.value.trim();
+    if (!termo) {
+      showToast('Digite um termo para pesquisar procedimentos no Tasy.', 'info');
+      return;
+    }
+
+    btnTasyBuscar.disabled = true;
+    btnTasyBuscar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Buscando...';
+    resultadosContainer.style.display = 'block';
+    resultadosList.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 12px;"><i class="fa-solid fa-spinner fa-spin fa-lg" style="color: var(--cyan-400); margin-bottom: 6px; display: block;"></i>Consultando view do Oracle Tasy...</div>';
+
+    try {
+      const res = await ApiClient.consultarProcedimentosTasy({ busca: termo, limite: 40 });
+      const itens = res.itens || [];
+
+      if (itens.length === 0) {
+        resultadosList.innerHTML = `<div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 12px;"><i class="fa-solid fa-folder-open" style="font-size: 1.2rem; margin-bottom: 4px; display: block; opacity: 0.5;"></i>Nenhum procedimento encontrado no Tasy para "${termo}".</div>`;
+        return;
+      }
+
+      resultadosList.innerHTML = itens.map(item => {
+        const jaVinculado = procedimentosSelecionadosTasy.some(p => p.sequencia === item.sequencia || (item.codigoProcedimento && p.codigoProcedimento === item.codigoProcedimento));
+        const encoded = encodeURIComponent(JSON.stringify(item));
+
+        return `
+          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <code style="font-family: 'JetBrains Mono', monospace; font-size: 0.74rem; color: var(--cyan-300);">${item.codigoProcedimento ?? item.sequencia}</code>
+              <span style="font-size: 0.82rem; font-weight: 500; color: #f8fafc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                ${item.descricao}
+              </span>
+              <span class="badge" style="font-size: 0.65rem; background: rgba(255, 255, 255, 0.06); color: var(--text-secondary);">
+                ${item.modalidadeEstimada || 'TASY'}
+              </span>
+            </div>
+            <button type="button" class="btn btn--secondary" onclick="window._vincularProcTasyNovoProto('${encoded}')" style="font-size: 0.75rem; padding: 4px 10px; white-space: nowrap; ${jaVinculado ? 'opacity: 0.5; pointer-events: none;' : 'border-color: rgba(56, 189, 248, 0.5); color: var(--cyan-400);'}">
+              ${jaVinculado ? '<i class="fa-solid fa-check"></i> Vinculado' : '<i class="fa-solid fa-plus"></i> Vincular'}
+            </button>
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      resultadosList.innerHTML = `<div style="font-size: 0.8rem; color: #f87171; text-align: center; padding: 12px;"><i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i>Erro ao consultar Oracle Tasy: ${err.message}</div>`;
+    } finally {
+      btnTasyBuscar.disabled = false;
+      btnTasyBuscar.innerHTML = '<i class="fa-solid fa-search"></i> Buscar no Tasy';
+    }
+  };
+
+  btnTasyBuscar.addEventListener('click', executarBuscaTasy);
+  inputTasyBusca.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      executarBuscaTasy();
+    }
   });
 
-  // Submissão do Formulário
+  // ---------------------------------------------------------------------------
+  // B. CHECKLIST CLÍNICO: PERGUNTAS GENÉRICAS E ORDENAÇÃO DE APRESENTAÇÃO
+  // ---------------------------------------------------------------------------
+  const containerGenericas = document.getElementById('containerPerguntasGenericasToggles');
+  const containerOrdenadas = document.getElementById('containerPerguntasOrdenadas');
+  const contadorTotalElem = document.getElementById('contadorPerguntasTotal');
+  const resumoSemaforoElem = document.getElementById('resumoSemaforoNovoProto');
+
+  const obterPerguntasGenericasDaModalidade = (modalidade) => {
+    return modalidade === 'TC' ? PERGUNTAS_PADRAO_TC : PERGUNTAS_PADRAO_RM;
+  };
+
+  const renderizarTogglesGenericas = () => {
+    const genericas = obterPerguntasGenericasDaModalidade(selectMod.value);
+    containerGenericas.innerHTML = genericas.map((p, idx) => {
+      const ativa = perguntasAtivas.some(a => a.isGeneric && a.codigoSufixo === p.codigoSufixo);
+      const corBadge = p.tipo === 'IMPEDITIVA' ? 'var(--coral-400)' : (p.tipo === 'ALERTA' ? 'var(--amber-400)' : 'var(--emerald-400)');
+      const labelBadge = p.tipo === 'IMPEDITIVA' ? '🔴 Impeditiva' : (p.tipo === 'ALERTA' ? '🟡 Alerta' : '🟢 Informativa');
+
+      return `
+        <label style="display: flex; align-items: flex-start; gap: 8px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px; cursor: pointer; user-select: none;">
+          <input type="checkbox" class="chk-generica-toggle" data-idx="${idx}" ${ativa ? 'checked' : ''} style="margin-top: 3px; accent-color: var(--cyan-400); cursor: pointer;">
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;">
+              <span style="font-size: 0.78rem; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                ${p.enunciado}
+              </span>
+              <span style="font-size: 0.65rem; color: ${corBadge}; font-weight: 700; white-space: nowrap;">
+                ${labelBadge}
+              </span>
+            </div>
+            <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 1px;">
+              ${p.fundamento}
+            </div>
+          </div>
+        </label>
+      `;
+    }).join('');
+
+    containerGenericas.querySelectorAll('.chk-generica-toggle').forEach(chk => {
+      chk.addEventListener('change', (e) => {
+        const idx = parseInt(e.target.getAttribute('data-idx'), 10);
+        const p = genericas[idx];
+        if (e.target.checked) {
+          if (!perguntasAtivas.some(a => a.isGeneric && a.codigoSufixo === p.codigoSufixo)) {
+            perguntasAtivas.push({
+              id: `gen_${p.codigoSufixo}`,
+              isGeneric: true,
+              codigoSufixo: p.codigoSufixo,
+              enunciado: p.enunciado,
+              tipo: p.tipo,
+              impeditivo: p.impeditivo,
+              gatilho: p.gatilho,
+              fundamento: p.fundamento
+            });
+          }
+        } else {
+          perguntasAtivas = perguntasAtivas.filter(a => !(a.isGeneric && a.codigoSufixo === p.codigoSufixo));
+        }
+        renderizarPerguntasOrdenadas();
+      });
+    });
+  };
+
+  const renderizarPerguntasOrdenadas = () => {
+    contadorTotalElem.textContent = perguntasAtivas.length;
+
+    let impeditivas = 0;
+    let alertas = 0;
+    let informativas = 0;
+
+    perguntasAtivas.forEach(p => {
+      if (p.tipo === 'IMPEDITIVA') impeditivas++;
+      else if (p.tipo === 'ALERTA') alertas++;
+      else informativas++;
+    });
+
+    resumoSemaforoElem.innerHTML = `
+      <span style="font-weight: 700; color: var(--text-secondary);">Composição do Semáforo:</span>
+      <span style="color: var(--coral-400); font-weight: 700;">🔴 ${impeditivas} Contraindicações Absolutas</span>
+      <span style="color: var(--amber-400); font-weight: 700;">🟡 ${alertas} Alertas Operacionais</span>
+      <span style="color: var(--emerald-400); font-weight: 700;">🟢 ${informativas} Critérios Informativos</span>
+    `;
+
+    if (perguntasAtivas.length === 0) {
+      containerOrdenadas.innerHTML = `
+        <div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 18px; background: rgba(0,0,0,0.2); border: 1px dashed var(--border-subtle); border-radius: 8px;">
+          <i class="fa-solid fa-list-check" style="font-size: 1.2rem; margin-bottom: 6px; display: block; opacity: 0.5;"></i>
+          Nenhuma pergunta selecionada para o checklist. Marque as perguntas genéricas acima ou adicione perguntas especializadas.
+        </div>
+      `;
+      return;
+    }
+
+    containerOrdenadas.innerHTML = perguntasAtivas.map((p, idx) => {
+      const isFirst = idx === 0;
+      const isLast = idx === perguntasAtivas.length - 1;
+      const pos = idx + 1;
+
+      return `
+        <div style="display: flex; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 8px 12px;">
+          <!-- Controles de Ordem (Subir / Descer e Input de Posição) -->
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <button type="button" onclick="window._moverPerguntaNovoProto(${idx}, -1)" ${isFirst ? 'disabled' : ''} style="background: none; border: none; color: ${isFirst ? 'rgba(255,255,255,0.15)' : 'var(--cyan-400)'}; cursor: ${isFirst ? 'default' : 'pointer'}; padding: 0 4px; font-size: 0.72rem;" title="Subir pergunta (antecipar na triagem)">
+                <i class="fa-solid fa-chevron-up"></i>
+              </button>
+              <button type="button" onclick="window._moverPerguntaNovoProto(${idx}, 1)" ${isLast ? 'disabled' : ''} style="background: none; border: none; color: ${isLast ? 'rgba(255,255,255,0.15)' : 'var(--cyan-400)'}; cursor: ${isLast ? 'default' : 'pointer'}; padding: 0 4px; font-size: 0.72rem;" title="Descer pergunta (postergar na triagem)">
+                <i class="fa-solid fa-chevron-down"></i>
+              </button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 2px;">
+              <span style="font-size: 0.75rem; font-weight: 800; color: var(--cyan-400); font-family: 'JetBrains Mono', monospace;">#</span>
+              <input type="number" value="${pos}" min="1" max="${perguntasAtivas.length}" onchange="window._mudarPosicaoPerguntaNovoProto(${idx}, this.value)" style="width: 40px; background: rgba(0,0,0,0.4); border: 1px solid var(--cyan-500); border-radius: 4px; color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; text-align: center; padding: 2px;" title="Alterar posição na ordem de apresentação">
+            </div>
+          </div>
+
+          <!-- Tipo / Classificação do Semáforo -->
+          <div style="width: 150px; flex-shrink: 0;">
+            <select onchange="window._alterarTipoPerguntaNovoProto(${idx}, this.value)" class="form-input" style="font-size: 0.75rem; padding: 4px 6px; cursor: pointer; height: auto;">
+              <option value="IMPEDITIVA" ${p.tipo === 'IMPEDITIVA' ? 'selected' : ''}>🔴 Impeditiva</option>
+              <option value="ALERTA" ${p.tipo === 'ALERTA' ? 'selected' : ''}>🟡 Alerta</option>
+              <option value="INFORMATIVA" ${p.tipo === 'INFORMATIVA' ? 'selected' : ''}>🟢 Informativa</option>
+            </select>
+          </div>
+
+          <!-- Enunciado Editável da Pergunta -->
+          <div style="flex: 1;">
+            <input type="text" value="${p.enunciado.replace(/"/g, '&quot;')}" oninput="window._editarEnunciadoPerguntaNovoProto(${idx}, this.value)" class="form-input" style="font-size: 0.82rem; padding: 5px 8px; width: 100%;" placeholder="Enunciado da pergunta clínica...">
+          </div>
+
+          <!-- Botão Excluir -->
+          <button type="button" onclick="window._removerPerguntaNovoProto(${idx})" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 4px 6px; font-size: 0.85rem;" title="Remover pergunta deste checklist">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
+      `;
+    }).join('');
+  };
+
+  // Funções globais de manipulação de ordem e propriedades das perguntas
+  window._moverPerguntaNovoProto = (index, delta) => {
+    const novoIdx = index + delta;
+    if (novoIdx < 0 || novoIdx >= perguntasAtivas.length) return;
+    const temp = perguntasAtivas[index];
+    perguntasAtivas[index] = perguntasAtivas[novoIdx];
+    perguntasAtivas[novoIdx] = temp;
+    renderizarPerguntasOrdenadas();
+  };
+
+  window._mudarPosicaoPerguntaNovoProto = (index, novoValor) => {
+    const alvo = Math.max(1, Math.min(perguntasAtivas.length, parseInt(novoValor, 10) || 1)) - 1;
+    if (alvo === index) return;
+    const [removido] = perguntasAtivas.splice(index, 1);
+    perguntasAtivas.splice(alvo, 0, removido);
+    renderizarPerguntasOrdenadas();
+  };
+
+  window._alterarTipoPerguntaNovoProto = (index, novoTipo) => {
+    if (!perguntasAtivas[index]) return;
+    perguntasAtivas[index].tipo = novoTipo;
+    perguntasAtivas[index].impeditivo = novoTipo === 'IMPEDITIVA';
+    perguntasAtivas[index].gatilho = novoTipo === 'IMPEDITIVA'
+      ? 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame'
+      : (novoTipo === 'ALERTA' ? 'Se SIM -> 🟡 Semáforo Amarelo' : 'Critério informativo clínico');
+    renderizarPerguntasOrdenadas();
+  };
+
+  window._editarEnunciadoPerguntaNovoProto = (index, novoTexto) => {
+    if (perguntasAtivas[index]) {
+      perguntasAtivas[index].enunciado = novoTexto;
+    }
+  };
+
+  window._removerPerguntaNovoProto = (index) => {
+    perguntasAtivas.splice(index, 1);
+    renderizarTogglesGenericas();
+    renderizarPerguntasOrdenadas();
+  };
+
+  // Botões de inclusão/exclusão em massa das perguntas genéricas
+  document.getElementById('btnMarcarTodasGenericas')?.addEventListener('click', () => {
+    const genericas = obterPerguntasGenericasDaModalidade(selectMod.value);
+    genericas.forEach(p => {
+      if (!perguntasAtivas.some(a => a.isGeneric && a.codigoSufixo === p.codigoSufixo)) {
+        perguntasAtivas.push({
+          id: `gen_${p.codigoSufixo}`,
+          isGeneric: true,
+          codigoSufixo: p.codigoSufixo,
+          enunciado: p.enunciado,
+          tipo: p.tipo,
+          impeditivo: p.impeditivo,
+          gatilho: p.gatilho,
+          fundamento: p.fundamento
+        });
+      }
+    });
+    renderizarTogglesGenericas();
+    renderizarPerguntasOrdenadas();
+  });
+
+  document.getElementById('btnDesmarcarTodasGenericas')?.addEventListener('click', () => {
+    perguntasAtivas = perguntasAtivas.filter(a => !a.isGeneric);
+    renderizarTogglesGenericas();
+    renderizarPerguntasOrdenadas();
+  });
+
+  // Botão para adicionar pergunta especializada customizada
+  document.getElementById('btnAdicionarPerguntaCustom')?.addEventListener('click', () => {
+    contadorCustom++;
+    perguntasAtivas.push({
+      id: `custom_${contadorCustom}`,
+      isGeneric: false,
+      codigoSufixo: `ANAT_${contadorCustom}`,
+      enunciado: 'Pergunta clínica especializada (ex: Possui implante/cirurgia prévia na região?)',
+      tipo: 'IMPEDITIVA',
+      impeditivo: true,
+      gatilho: 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio de Segurança',
+      fundamento: 'Critério especializado da região anatômica para proteção e direcionamento técnico.'
+    });
+    renderizarPerguntasOrdenadas();
+  });
+
+  // Inicialização com as perguntas genéricas da modalidade
+  const inicializarPerguntasPadraoModalidade = () => {
+    const genericas = obterPerguntasGenericasDaModalidade(selectMod.value);
+    perguntasAtivas = genericas.map(p => ({
+      id: `gen_${p.codigoSufixo}`,
+      isGeneric: true,
+      codigoSufixo: p.codigoSufixo,
+      enunciado: p.enunciado,
+      tipo: p.tipo,
+      impeditivo: p.impeditivo,
+      gatilho: p.gatilho,
+      fundamento: p.fundamento
+    }));
+    renderizarTogglesGenericas();
+    renderizarPerguntasOrdenadas();
+  };
+
+  selectMod.addEventListener('change', () => {
+    atualizarSugestaoCodigo();
+    inicializarPerguntasPadraoModalidade();
+  });
+
+  // Inicializa visual
+  inicializarPerguntasPadraoModalidade();
+  renderizarSelecionadosTasy();
+
+  // ---------------------------------------------------------------------------
+  // C. SUBMISSÃO DO FORMULÁRIO: VALIDAÇÃO E CRIAÇÃO DO PROTOCOLO
+  // ---------------------------------------------------------------------------
   document.getElementById('formNovoProtocoloModal').addEventListener('submit', (e) => {
     e.preventDefault();
     const btnSalvar = document.getElementById('btnSalvarNovoProtocolo');
-    btnSalvar.disabled = true;
-    btnSalvar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Ativando Protocolo...';
 
     const nome = inputNome.value.trim();
     let codigo = inputCodigo.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
     const modalidade = selectMod.value;
-    const icone = document.getElementById('novoProtoIcone').value || 'fa-brain';
+    const icone = selectIcone.value || 'fa-brain';
+
+    if (!nome) {
+      showToast('O nome do protocolo é obrigatório.', 'error');
+      inputNome.focus();
+      return;
+    }
 
     if (!codigo) {
       codigo = `${modalidade}_${Date.now()}`;
     }
 
     if (PROTOCOLOS_CATALOGO_INFO[codigo]) {
-      showToast(`O código de protocolo "${codigo}" já existe. Escolha outro código identificador.`, 'error');
-      btnSalvar.disabled = false;
-      btnSalvar.innerHTML = '<i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo';
+      showToast(`O código identificador "${codigo}" já existe. Escolha outro código.`, 'error');
+      inputCodigo.focus();
       return;
     }
 
-    // Coleta perguntas base marcadas
-    const listaBase = modalidade === 'TC' ? PERGUNTAS_PADRAO_TC : PERGUNTAS_PADRAO_RM;
+    if (procedimentosSelecionadosTasy.length === 0) {
+      showToast('Vincule pelo menos um procedimento do Tasy ao protocolo.', 'error');
+      inputTasyBusca.focus();
+      return;
+    }
+
+    if (perguntasAtivas.length === 0) {
+      showToast('Adicione pelo menos uma pergunta ao checklist do protocolo.', 'error');
+      return;
+    }
+
+    btnSalvar.disabled = true;
+    btnSalvar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Ativando Protocolo...';
+
+    // Monta o checklist na ordem exata definida pelo usuário
     const perguntasFinais = [];
     const metadataFinais = {};
 
-    container.querySelectorAll('.chk-pergunta-base:checked').forEach(chk => {
-      const idx = parseInt(chk.getAttribute('data-idx'));
-      const p = listaBase[idx];
-      if (p) {
-        const codigoPerg = `${codigo}_${p.codigoSufixo}`;
-        perguntasFinais.push({
-          codigo: codigoPerg,
-          enunciado: p.enunciado,
-          impeditivo: p.impeditivo
-        });
-        metadataFinais[codigoPerg] = {
-          tipo: p.tipo,
-          gatilho: p.gatilho,
-          fundamento: p.fundamento
-        };
-      }
+    perguntasAtivas.forEach((p, idx) => {
+      const codigoPerg = `${codigo}_${p.codigoSufixo || 'P' + (idx + 1)}`;
+      perguntasFinais.push({
+        codigo: codigoPerg,
+        enunciado: p.enunciado,
+        impeditivo: p.impeditivo
+      });
+      metadataFinais[codigoPerg] = {
+        tipo: p.tipo,
+        gatilho: p.gatilho,
+        fundamento: p.fundamento
+      };
     });
 
-    // Coleta perguntas específicas adicionadas
-    container.querySelectorAll('#containerPerguntasEspecificas > div').forEach((card, idx) => {
-      const enunciado = card.querySelector('.custom-p-enunciado')?.value.trim();
-      const tipo = card.querySelector('.custom-p-tipo')?.value || 'INFORMATIVA';
-      let gatilho = card.querySelector('.custom-p-gatilho')?.value.trim();
-      let fundamento = card.querySelector('.custom-p-fundamento')?.value.trim();
-
-      if (enunciado) {
-        const codigoPerg = `${codigo}_ANAT_${idx + 1}`;
-        const impeditivo = tipo === 'IMPEDITIVA';
-
-        if (!gatilho) {
-          gatilho = impeditivo ? 'Se SIM -> 🔴 Semáforo Vermelho + Bloqueio do Exame' : (tipo === 'ALERTA' ? 'Se SIM -> 🟡 Semáforo Amarelo' : 'Critério informativo clínico');
-        }
-        if (!fundamento) {
-          fundamento = 'Critério específico da região anatômica para segurança e direcionamento técnico.';
-        }
-
-        perguntasFinais.push({
-          codigo: codigoPerg,
-          enunciado: enunciado,
-          impeditivo: impeditivo
-        });
-        metadataFinais[codigoPerg] = {
-          tipo: tipo,
-          gatilho: gatilho,
-          fundamento: fundamento
-        };
-      }
-    });
-
-    if (perguntasFinais.length === 0) {
-      showToast('Selecione pelo menos uma pergunta de segurança ou adicione uma pergunta personalizada.', 'error');
-      btnSalvar.disabled = false;
-      btnSalvar.innerHTML = '<i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo';
-      return;
-    }
-
-    // Coleta e valida procedimento inicial obrigatório
-    const tussCodigo = document.getElementById('novoProtoTussCodigo')?.value.trim();
-    const tussNome = document.getElementById('novoProtoTussNome')?.value.trim();
-    const tussRegiao = document.getElementById('novoProtoTussRegiao')?.value.trim();
-
-    if (!tussNome) {
-      showToast('O nome do procedimento médico integrado é obrigatório.', 'error');
-      btnSalvar.disabled = false;
-      btnSalvar.innerHTML = '<i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo';
-      document.getElementById('novoProtoTussNome')?.focus();
-      return;
-    }
-
-    if (!tussRegiao) {
-      showToast('A região anatômica do procedimento é obrigatória.', 'error');
-      btnSalvar.disabled = false;
-      btnSalvar.innerHTML = '<i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo';
-      document.getElementById('novoProtoTussRegiao')?.focus();
-      return;
-    }
-
-    const validacaoTuss = validarCodigoTussERis(tussCodigo);
-    if (!validacaoTuss.valido) {
-      showToast(validacaoTuss.mensagem, 'error');
-      btnSalvar.disabled = false;
-      btnSalvar.innerHTML = '<i class="fa-solid fa-check"></i> Salvar & Ativar Protocolo';
-      document.getElementById('novoProtoTussCodigo')?.focus();
-      return;
-    }
-
-    const procedimentosIniciais = [
-      {
-        codigoTuss: validacaoTuss.codigoFormatado,
-        nome: tussNome,
-        regiao: tussRegiao
-      }
-    ];
+    // Mapeia procedimentos oficiais do Tasy para o catálogo de procedimentos do formulário
+    const procedimentosIniciais = procedimentosSelecionadosTasy.map(proc => ({
+      codigoTuss: String(proc.codigoProcedimento || proc.sequencia),
+      nome: proc.descricao,
+      regiao: extrairRegiao(proc.descricao) || nome,
+      sequenciaTasy: proc.sequencia,
+      modalidade: proc.modalidadeEstimada || modalidade
+    }));
 
     // Registra nas estruturas do sistema
     PROTOCOLOS_CATALOGO_INFO[codigo] = {
@@ -3959,7 +4668,7 @@ function adminAbrirModalNovoProtocolo() {
       nome: nome,
       modalidade: modalidade,
       icone: icone,
-      corIcone: modalidade === 'TC' ? 'var(--cyan-400)' : 'var(--purple-400)',
+      corIcone: modalidade === 'TC' ? 'var(--cyan-400)' : (modalidade === 'US' ? 'var(--emerald-400)' : 'var(--purple-400)'),
       isCustom: true
     };
 
@@ -3970,12 +4679,12 @@ function adminAbrirModalNovoProtocolo() {
     // Salva no LocalStorage para persistência
     salvarProtocolosCustomizadosStorage();
 
-    // Atualiza o seletor visual e renderiza o novo protocolo
+    // Atualiza o seletor visual e renderiza o novo protocolo no dicionário
     atualizarOpcoesSeletorProtocolos(codigo);
     renderizarDicionarioProtocolos(codigo);
 
     container.remove();
-    showToast(`Protocolo anatômico "${nome}" criado e ativado com sucesso!`, 'success');
+    showToast(`Protocolo "${nome}" criado com sucesso! (${procedimentosIniciais.length} procedimentos vinculados)`, 'success');
   });
 }
 
@@ -4010,3 +4719,315 @@ function adminExcluirProtocoloCustomizado(protocoloId) {
   renderizarDicionarioProtocolos('RM_COLUNA');
   showToast(`Protocolo "${info.nome}" excluído com sucesso!`, 'success');
 }
+
+/* ==============================================================================
+   INTEGRAÇÃO TASY (ORACLE) - EXAMES DO DIA & IDENTIFICAÇÃO DE WORKSTATION
+   ============================================================================== */
+
+async function initTasyWorkstationIntegracao() {
+  // 1. Carrega dados da estação de trabalho e sala mapeada
+  await carregarInfoWorkstation();
+
+  // 2. Inicializa seletor de data com a data atual (YYYY-MM-DD)
+  const inputData = document.getElementById('inputDataTasy');
+  const hojeStr = new Date().toISOString().split('T')[0];
+  if (inputData && !inputData.value) {
+    inputData.value = hojeStr;
+  }
+
+  // 3. Event listeners de data e filtros
+  inputData?.addEventListener('change', () => {
+    carregarExamesDiaTasy(inputData.value, document.getElementById('inputBuscaTasy')?.value);
+  });
+
+  document.getElementById('btnDataTasyHoje')?.addEventListener('click', () => {
+    if (inputData) inputData.value = hojeStr;
+    carregarExamesDiaTasy(hojeStr, document.getElementById('inputBuscaTasy')?.value);
+  });
+
+  document.getElementById('btnDataTasyOntem')?.addEventListener('click', () => {
+    const ontem = new Date();
+    ontem.setDate(ontem.getDate() - 1);
+    const ontemStr = ontem.toISOString().split('T')[0];
+    if (inputData) inputData.value = ontemStr;
+    carregarExamesDiaTasy(ontemStr, document.getElementById('inputBuscaTasy')?.value);
+  });
+
+  document.getElementById('btnDataTasyTeste')?.addEventListener('click', () => {
+    const dataTeste = '2014-05-30';
+    if (inputData) inputData.value = dataTeste;
+    carregarExamesDiaTasy(dataTeste, document.getElementById('inputBuscaTasy')?.value);
+  });
+
+  document.getElementById('btnBuscarTasy')?.addEventListener('click', () => {
+    carregarExamesDiaTasy(inputData?.value || hojeStr, document.getElementById('inputBuscaTasy')?.value);
+  });
+
+  document.getElementById('inputBuscaTasy')?.addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') {
+      carregarExamesDiaTasy(inputData?.value || hojeStr, e.target.value);
+    }
+  });
+
+  document.getElementById('btnRecarregarTasyDia')?.addEventListener('click', () => {
+    carregarExamesDiaTasy(inputData?.value || hojeStr, document.getElementById('inputBuscaTasy')?.value);
+  });
+
+  document.getElementById('btnTogglePainelTasy')?.addEventListener('click', () => {
+    const painel = document.getElementById('painelTasyExamesDia');
+    const txt = document.getElementById('txtTogglePainelTasy');
+    if (!painel) return;
+    if (painel.style.display === 'none') {
+      painel.style.display = 'block';
+      if (txt) txt.textContent = 'Ocultar Painel Tasy';
+    } else {
+      painel.style.display = 'none';
+      if (txt) txt.textContent = 'Expandir Painel Tasy';
+    }
+  });
+
+  // 4. Carrega inicialmente os exames do dia
+  await carregarExamesDiaTasy(inputData?.value || hojeStr);
+}
+
+async function carregarInfoWorkstation() {
+  const elemDesc = document.getElementById('txtWorkstationDescricao');
+  try {
+    const ws = await ApiClient.obterInfoWorkstation();
+    UIState.workstation = ws;
+    if (elemDesc) {
+      elemDesc.innerHTML = `Posto: <strong style="color:var(--cyan-300);">${ws.salaPadrao}</strong> | Host: <strong>${ws.hostname}</strong> (${ws.ip})`;
+    }
+  } catch (err) {
+    console.warn('Não foi possível obter identificação remota da workstation, usando padrão:', err);
+    UIState.workstation = {
+      ip: '192.1.2.120',
+      hostname: 'IMI-6691',
+      salaPadrao: 'RM-01',
+      descricao: 'RM-01 (192.1.2.120 - IMI-6691)'
+    };
+    if (elemDesc) {
+      elemDesc.innerHTML = `Posto: <strong style="color:var(--cyan-300);">RM-01</strong> | Host: <strong>IMI-6691</strong> (192.1.2.120)`;
+    }
+  }
+}
+
+async function carregarExamesDiaTasy(data, busca) {
+  const tbody = document.getElementById('tbodyTasyExamesDia');
+  const badgeTotal = document.getElementById('badgeTotalTasyDia');
+  if (!tbody) return;
+
+  tbody.innerHTML = `
+    <tr>
+      <td colspan="8" style="text-align: center; padding: 24px; color: var(--text-muted);">
+        <i class="fa-solid fa-spinner fa-spin" style="margin-right: 6px; color: var(--purple-400);"></i>
+        Consultando exames no Oracle Tasy (${data || 'Hoje'})...
+      </td>
+    </tr>
+  `;
+
+  try {
+    const res = await ApiClient.consultarExamesDiaTasy({ data, busca, limite: 50 });
+    const itens = (res && Array.isArray(res.itens)) ? res.itens : [];
+    UIState.examesTasyDia = itens;
+
+    if (badgeTotal) {
+      badgeTotal.textContent = `${itens.length} exame${itens.length === 1 ? '' : 's'}`;
+    }
+
+    if (itens.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" style="text-align: center; padding: 32px; color: var(--text-muted);">
+            <div style="font-size: 1.1rem; margin-bottom: 8px;">
+              <i class="fa-regular fa-folder-open" style="font-size: 1.6rem; color: var(--purple-400);"></i>
+            </div>
+            Nenhum exame localizado no Tasy para a data <strong>${data || 'hoje'}</strong>.
+            <div style="margin-top: 10px;">
+              <button type="button" class="btn btn--secondary" style="font-size: 0.8rem; padding: 6px 14px; border-color: rgba(245, 158, 11, 0.4); color: var(--amber-400);" onclick="selecionarDataTesteTasy()">
+                <i class="fa-solid fa-calendar-check"></i> Consultar Data com Exames na Base Teste (30/05/2014)
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = itens.map((item, index) => {
+      const horaFormatada = item.dataEntrada
+        ? new Date(item.dataEntrada).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '--:--';
+
+      const dataFormatada = item.dataEntrada
+        ? new Date(item.dataEntrada).toLocaleDateString([], { day: '2-digit', month: '2-digit' })
+        : '';
+
+      const cpfFormatado = item.cpf
+        ? item.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+        : 'Não informado';
+
+      let statusBadge = '';
+      if (item.statusExecucaoCodigo === '10') {
+        statusBadge = `<span class="badge-status" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 0.72rem;"><i class="fa-solid fa-clock"></i> Prescrito</span>`;
+      } else if (item.statusExecucaoCodigo === '11') {
+        statusBadge = `<span class="badge-status" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4); font-size: 0.72rem;"><i class="fa-solid fa-person-walking"></i> Chegando / Em Exame</span>`;
+      } else if (item.statusExecucaoCodigo === '20') {
+        statusBadge = `<span class="badge-status status-liberado" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-check"></i> Executado</span>`;
+      } else {
+        statusBadge = `<span class="badge-status" style="font-size: 0.72rem;">${item.statusExecucaoDescricao || 'Aguardando'}</span>`;
+      }
+
+      return `
+        <tr>
+          <td>
+            <div style="font-weight: 700; color: #fff;">${horaFormatada}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">${dataFormatada}</div>
+          </td>
+          <td>
+            <span style="font-weight: 700; color: var(--cyan-400);">#${item.atendimento}</span>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">Pront: ${item.prontuario || '-'}</div>
+          </td>
+          <td>
+            <div style="font-weight: 700; color: #fff;">${item.pacienteNome}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">
+              ${item.idade ? `${item.idade} anos` : 'Idade -'} | ${item.sexo === 'M' ? 'Masc' : (item.sexo === 'F' ? 'Fem' : '-')} | CPF: ${cpfFormatado}
+            </div>
+          </td>
+          <td>
+            <div style="font-weight: 600; color: var(--purple-300);">${item.procedimentoNome}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">Cód Tasy: ${item.codigoProcedimento || '-'} | Setor 17 (RM)</div>
+          </td>
+          <td style="font-size: 0.85rem; color: #cbd5e1;">${item.medicoSolicitante || '<span style="color:var(--text-muted);">-</span>'}</td>
+          <td style="font-size: 0.85rem; color: #cbd5e1;">${item.convenio || '<span style="color:var(--text-muted);">Particular</span>'}</td>
+          <td>${statusBadge}</td>
+          <td style="text-align: right;">
+            <button type="button" class="btn btn--primary" style="padding: 6px 12px; font-size: 0.78rem; background: linear-gradient(135deg, #7c3aed, #a855f7); box-shadow: 0 2px 8px rgba(168, 85, 247, 0.3);" onclick="iniciarTriagemExameTasy(${index})">
+              <i class="fa-solid fa-clipboard-check"></i> Iniciar Triagem
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+  } catch (err) {
+    console.error('Erro ao consultar exames do Tasy:', err);
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align: center; padding: 24px; color: var(--coral-400);">
+          <i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i>
+          Não foi possível conectar ao banco Oracle Tasy: ${err.message}
+        </td>
+      </tr>
+    `;
+  }
+}
+
+function selecionarDataTesteTasy() {
+  const inputData = document.getElementById('inputDataTasy');
+  if (inputData) {
+    inputData.value = '2014-05-30';
+  }
+  carregarExamesDiaTasy('2014-05-30', document.getElementById('inputBuscaTasy')?.value);
+}
+
+function inferirProtocoloPorProcedimento(descricao, codigoProcedimento) {
+  // 1. Tenta correspondência direta no catálogo de procedimentos por código TUSS/Tasy
+  if (codigoProcedimento) {
+    const matchCod = buscarProcedimentoPorCodigoTuss(String(codigoProcedimento));
+    if (matchCod) return matchCod.protocoloId;
+  }
+
+  const descUpper = (descricao || '').toUpperCase();
+
+  // 2. Tenta correspondência por palavra-chave nos protocolos existentes
+  if (descUpper.includes('COLUNA') || descUpper.includes('LOMBAR') || descUpper.includes('CERVICAL') || descUpper.includes('TORACICA')) {
+    return 'RM_COLUNA';
+  }
+  if (descUpper.includes('BRACO') || descUpper.includes('ANTEBRACO') || descUpper.includes('PUNHO') || descUpper.includes('MAO') || descUpper.includes('COTOVELO') || descUpper.includes('OMBRO')) {
+    return 'RM_BRACO_ANTEBRACO';
+  }
+  if (descUpper.includes('BACIA') || descUpper.includes('QUADRIL') || descUpper.includes('PELVE') || descUpper.includes('COXOFEMORAL')) {
+    return 'RM_BACIA_QUADRIL';
+  }
+  if (descUpper.includes('TORAX') || descUpper.includes('PULMAO')) {
+    return 'TC_TORAX';
+  }
+  if (descUpper.includes('ABDOMEN') || descUpper.includes('ABDOMINAL')) {
+    return 'TC_ABDOMEN';
+  }
+
+  // 3. Verifica se algum protocolo customizado possui palavras-chave no nome
+  for (const protoKey of Object.keys(PROTOCOLOS_CATALOGO_INFO)) {
+    const proto = PROTOCOLOS_CATALOGO_INFO[protoKey];
+    if (proto && proto.nome && descUpper.includes(proto.nome.toUpperCase())) {
+      return protoKey;
+    }
+  }
+
+  // Padrão de segurança para ressonância
+  return 'RM_COLUNA';
+}
+
+function iniciarTriagemExameTasy(index) {
+  const itemTasy = UIState.examesTasyDia[index];
+  if (!itemTasy) return;
+
+  const salaAtual = UIState.workstation?.salaPadrao || 'RM-01';
+  const protoId = inferirProtocoloPorProcedimento(itemTasy.procedimentoNome, itemTasy.codigoProcedimento);
+  const protoInfo = PROTOCOLOS_CATALOGO_INFO[protoId] || { nome: 'Ressonância Magnética' };
+
+  // Verifica se o exame já está na fila local
+  let exameLocal = UIState.exames.find(e => e.atendimento === itemTasy.atendimento);
+
+  if (exameLocal) {
+    // Atualiza sala e dados do atendimento
+    exameLocal.sala = salaAtual;
+    if (itemTasy.medicoSolicitante) exameLocal.medicoSolicitante = itemTasy.medicoSolicitante;
+    if (itemTasy.convenio) exameLocal.convenio = itemTasy.convenio;
+  } else {
+    // Cria novo exame a partir do Tasy
+    const novoId = Date.now();
+    const hora = itemTasy.dataEntrada
+      ? new Date(itemTasy.dataEntrada).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '08:00';
+
+    exameLocal = {
+      id: novoId,
+      atendimento: itemTasy.atendimento,
+      pacienteNome: itemTasy.pacienteNome,
+      documentoCpf: itemTasy.cpf || '00000000000',
+      idade: itemTasy.idade || 40,
+      dataNascimento: itemTasy.dataNascimento,
+      sexo: itemTasy.sexo || 'M',
+      telefone: itemTasy.telefone || '',
+      pesoKg: 70.0,
+      alturaCm: 170,
+      indicacaoClinica: '',
+      modalidade: 'RM',
+      tipoFormulario: protoId,
+      segmentoLado: protoInfo.nome,
+      procedimento: itemTasy.procedimentoNome,
+      codigoProcedimento: itemTasy.codigoProcedimento,
+      medicoSolicitante: itemTasy.medicoSolicitante,
+      convenio: itemTasy.convenio || 'Particular',
+      sala: salaAtual,
+      horario: hora,
+      status: 'AGUARDANDO_TRIAGEM',
+      statusTasy: itemTasy.statusExecucaoDescricao,
+      origemIntegracao: 'TASY'
+    };
+
+    UIState.exames.unshift(exameLocal);
+  }
+
+  // Atualiza contadores e grid da worklist
+  atualizarContadoresWorklist();
+  renderizarWorklist();
+
+  // Abre diretamente a tela de triagem preenchendo todos os dados do paciente
+  abrirTriagem(exameLocal.id);
+
+  showToast(`Triagem iniciada para ${exameLocal.pacienteNome} (Atendimento #${exameLocal.atendimento})! Posto: ${salaAtual}`, 'success');
+}
+

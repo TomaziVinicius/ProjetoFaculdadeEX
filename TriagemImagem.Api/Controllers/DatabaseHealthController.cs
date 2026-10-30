@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TriagemImagem.Domain.Services;
 using TriagemImagem.Infrastructure.Data.Context;
 
 namespace TriagemImagem.Api.Controllers;
@@ -11,11 +12,16 @@ public class DatabaseHealthController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly WorklistLabDbContext _contextLab;
+    private readonly ITasyService _tasyService;
 
-    public DatabaseHealthController(AppDbContext context, WorklistLabDbContext contextLab)
+    public DatabaseHealthController(
+        AppDbContext context,
+        WorklistLabDbContext contextLab,
+        ITasyService tasyService)
     {
         _context = context;
         _contextLab = contextLab;
+        _tasyService = tasyService;
     }
 
     /// <summary>
@@ -60,6 +66,8 @@ public class DatabaseHealthController : ControllerBase
                 ? await _contextLab.Pedidos.Select(p => p.TipoFormulario).Distinct().ToListAsync()
                 : new List<string> { "RM_COLUNA", "RM_BRACO_ANTEBRACO", "RM_BACIA_QUADRIL", "TC_TORAX", "TC_ABDOMEN" };
 
+            var tasyStatus = await _tasyService.TestarConexaoAsync();
+
             return Ok(new
             {
                 status = "Conectado",
@@ -81,6 +89,7 @@ public class DatabaseHealthController : ControllerBase
                     pacientesCadastrados = totalPacientesLab,
                     formulariosDisponiveis = tiposFormularios
                 },
+                banco_tasy_oracle = tasyStatus,
                 pastaDocumentos = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "TriagensDiagnosticoImagem"),
                 horarioServidor = DateTime.UtcNow
             });

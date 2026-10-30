@@ -2,6 +2,7 @@ using System.Net.Sockets;
 using Microsoft.EntityFrameworkCore;
 using TriagemImagem.Api.Middlewares;
 using TriagemImagem.Application.Extensions;
+using TriagemImagem.Domain.Configurations;
 using TriagemImagem.Infrastructure.Data.Context;
 using TriagemImagem.Infrastructure.Extensions;
 
@@ -15,7 +16,7 @@ var worklistConnString = builder.Configuration.GetConnectionString("WorklistLabC
     ?? "Server=localhost;Port=3306;Database=worklist_lab_db;User=root;Password=;TreatTinyAsBoolean=true;";
 
 var (mysqlHost, mysqlPort) = ExtrairHostPorta(connectionString);
-var mysqlDisponivel = TestarConexaoTcp(mysqlHost, mysqlPort, 400);
+var mysqlDisponivel = TestarConexaoTcp(mysqlHost, mysqlPort, 2000);
 
 // Banco de Dados 1: Aplicação de Triagem Clínica
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -81,7 +82,9 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod());
 });
 
-// 4. Registro dos Repositórios e Serviços de Domínio e Aplicação
+// 4. Registro de Configurações, Repositórios e Serviços de Domínio e Aplicação
+builder.Services.Configure<LdapSettings>(builder.Configuration.GetSection(LdapSettings.SectionName));
+builder.Services.Configure<TasySettings>(builder.Configuration.GetSection(TasySettings.SectionName));
 builder.Services.AddInfrastructureRepositories();
 builder.Services.AddApplicationServices();
 
@@ -117,15 +120,16 @@ using (var scope = app.Services.CreateScope())
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 // 7. Pipeline HTTP e Documentação OpenAPI (Swagger)
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Triagem API v1");
+    c.RoutePrefix = "swagger";
+});
 
 app.UseCors("Frontend");
 
-// 8. Servir a Aplicação Web Frontend diretamente na porta 5000 (http://localhost:5000)
+// 8. Servir a Aplicação Web Frontend diretamente
 var pastaFrontend = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "frontend"));
 if (!Directory.Exists(pastaFrontend))
 {
@@ -148,6 +152,16 @@ if (Directory.Exists(pastaFrontend))
 }
 
 app.UseAuthorization();
+
+// Endpoint de Health Check operacional
+app.MapGet("/api/health", () => Results.Ok(new
+{
+    status = "OK",
+    service = "TriagemImagem.Api",
+    environment = app.Environment.EnvironmentName,
+    timestamp = DateTime.UtcNow
+}));
+
 app.MapControllers();
 
 app.Run();

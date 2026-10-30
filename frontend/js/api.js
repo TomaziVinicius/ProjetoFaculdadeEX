@@ -5,7 +5,11 @@
  */
 
 const ApiClient = {
-  baseUrl: localStorage.getItem('api_base_url') || 'http://localhost:5000/api/v1',
+  baseUrl: localStorage.getItem('api_base_url') || (
+    window.location.protocol === 'file:' || window.location.port === '5500' || window.location.port === '5501'
+      ? 'http://localhost:5000/api/v1'
+      : '/api/v1'
+  ),
 
   /**
    * Executa requisições HTTP padronizadas com tratamento de erros.
@@ -188,6 +192,52 @@ const ApiClient = {
     return await this.request(`/admin/exames/${exameId}`, {
       method: 'DELETE'
     });
+  },
+
+  // 12. Integração Tasy / Oracle & Active Directory (LDAP)
+  async obterStatusTasy() {
+    return await this.request('/tasy/status');
+  },
+
+  async consultarProcedimentosTasy(filtros = {}) {
+    const params = new URLSearchParams();
+    if (filtros.busca) params.append('busca', filtros.busca);
+    if (filtros.codigo) params.append('codigo', filtros.codigo);
+    if (filtros.limite) params.append('limite', filtros.limite);
+    if (filtros.offset) params.append('offset', filtros.offset);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return await this.request(`/tasy/procedimentos${query}`);
+  },
+
+  async consultarExamesDiaTasy(filtros = {}) {
+    const params = new URLSearchParams();
+    if (filtros.data) params.append('data', filtros.data);
+    if (filtros.busca) params.append('busca', filtros.busca);
+    if (filtros.limite) params.append('limite', filtros.limite);
+    if (filtros.offset) params.append('offset', filtros.offset);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return await this.request(`/tasy/exames-dia${query}`);
+  },
+
+  async obterInfoWorkstation() {
+    return await this.request('/tasy/workstation');
+  },
+
+  async executarQueryTasy(query, limite = 100) {
+    return await this.request('/tasy/query', {
+      method: 'POST',
+      body: JSON.stringify({ query, limite })
+    });
+  },
+
+  async obterStatusLdap() {
+    return await this.request('/auth/ldap/status');
+  },
+
+  async obterMembrosLdap() {
+    return await this.request('/auth/ldap/membros');
   }
 };
 
