@@ -47,7 +47,10 @@ public sealed record ExameTasyDiaDto(
     string Modalidade,
     string? StatusExecucaoCodigo,
     string StatusExecucaoDescricao
-);
+)
+{
+    public long? NrSeqProcInterno => SequenciaProcedimentoInterno;
+}
 
 public interface ITasyService
 {

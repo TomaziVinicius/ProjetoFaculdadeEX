@@ -49,12 +49,14 @@ try {
         $publishCmd = "dotnet publish `"$localRoot\TriagemImagem.Api\TriagemImagem.Api.csproj`" -c Release -r linux-x64 --self-contained true -o `"$stagingDir`""
         Invoke-Expression $publishCmd | Out-Null
         Write-Host " [OK] Binário Linux-x64 gerado com sucesso." -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "[1/5] Pulando compilação (SkipBuild ativado)..." -ForegroundColor Gray
     }
 
     # 3. Preparar artefatos de deploy (Frontend, Configs, Scripts)
     Write-Host "[2/5] Preparando pacote de distribuição com Frontend..." -NoNewline
+    if (Test-Path "$stagingDir\frontend") { Remove-Item "$stagingDir\frontend" -Recurse -Force }
     Copy-Item -Path "$localRoot\frontend" -Destination "$stagingDir\frontend" -Recurse -Force
     Copy-Item -Path "$localRoot\start.sh" -Destination "$stagingDir\start.sh" -Force
     Copy-Item -Path "$localRoot\ecosystem.config.cjs" -Destination "$stagingDir\ecosystem.config.cjs" -Force
@@ -76,6 +78,7 @@ try {
     $remoteCmd = @"
 export PATH=`$HOME/.nvm/versions/node/v24.22.2/bin:`$HOME/.nvm/versions/node/v24.20.0/bin:/usr/local/bin:/usr/bin:/bin:`$PATH
 mkdir -p $RemoteDir
+rm -rf $RemoteDir/frontend
 tar -xzf /home/$ServerUser/deploy.tar.gz -C $RemoteDir/
 rm -f /home/$ServerUser/deploy.tar.gz
 

@@ -154,6 +154,16 @@ function carregarProtocolosCustomizados() {
         CATALOGO_PROCEDIMENTOS_FORMULARIO[key] = Array.isArray(p.procedimentos) ? p.procedimentos : [];
       }
     });
+
+    // Restaura procedimentos vinculados do Tasy em protocolos padrão e customizados
+    const catalogoSalvo = JSON.parse(localStorage.getItem('app_catalogo_procedimentos_form') || 'null');
+    if (catalogoSalvo && typeof catalogoSalvo === 'object' && typeof CATALOGO_PROCEDIMENTOS_FORMULARIO !== 'undefined') {
+      Object.keys(catalogoSalvo).forEach(protoKey => {
+        if (Array.isArray(catalogoSalvo[protoKey])) {
+          CATALOGO_PROCEDIMENTOS_FORMULARIO[protoKey] = catalogoSalvo[protoKey];
+        }
+      });
+    }
   } catch (err) {
     console.warn('Erro ao carregar protocolos customizados do localStorage:', err);
   }
@@ -185,6 +195,9 @@ function salvarProtocolosCustomizadosStorage() {
       }
     });
     localStorage.setItem('app_protocolos_custom', JSON.stringify(salvos));
+    if (typeof CATALOGO_PROCEDIMENTOS_FORMULARIO !== 'undefined') {
+      localStorage.setItem('app_catalogo_procedimentos_form', JSON.stringify(CATALOGO_PROCEDIMENTOS_FORMULARIO));
+    }
   } catch (err) {
     console.warn('Erro ao salvar protocolos customizados no localStorage:', err);
   }
@@ -582,6 +595,8 @@ async function carregarWorklist() {
       UIState.exames = examesRemotos.map(e => ({
         id: e.id,
         atendimento: e.atendimento,
+        sequenciaProcedimentoInterno: e.nrSeqProcInterno || e.sequenciaProcedimentoInterno || e.sequenciaInterna || null,
+        nrSeqProcInterno: e.nrSeqProcInterno || e.sequenciaProcedimentoInterno || e.sequenciaInterna || null,
         pacienteNome: e.pacienteNome,
         documentoCpf: e.pacienteCpf || e.documentoCpf,
         idade: e.idade,
@@ -600,7 +615,7 @@ async function carregarWorklist() {
         statusRiscoSemaforo: e.statusRiscoSemaforo,
         possuiTriagem: e.possuiTriagem,
         volumeContrasteMl: e.volumeContrasteMl,
-        caminhoArquivoArmazenado: e.caminhoArquivoArmazenado
+        caminhoArquivoArmazenado: e.caminhoArquivoArmazenado || null
       }));
       verificarConexaoApi();
     }
@@ -666,17 +681,17 @@ function renderizarWorklist() {
     const statusBadge = isLiberado
       ? '<span class="badge-status status-liberado"><i class="fa-solid fa-check-circle"></i> Liberado</span>'
       : (isBloqueado
-        ? '<span class="badge-status status-bloqueado"><i class="fa-solid fa-ban"></i> Não Permitido (Bloqueado)</span>'
+        ? '<span class="badge-status status-bloqueado"><i class="fa-solid fa-ban"></i> Não permitido (bloqueado)</span>'
         : (isEmTriagem
-          ? '<span class="badge-status" style="background: rgba(245, 158, 11, 0.2); color: var(--amber-400); border: 1px solid rgba(245, 158, 11, 0.4);"><i class="fa-solid fa-spinner fa-spin"></i> Em Triagem</span>'
+          ? '<span class="badge-status status-em-triagem"><i class="fa-solid fa-spinner fa-spin"></i> Em triagem</span>'
           : '<span class="badge-status status-aguardando"><i class="fa-solid fa-clock"></i> Aguardando</span>'));
 
     const modBadgeClass = item.modalidade === 'TC' ? 'badge-tc' : 'badge-rm';
     const btnTexto = isLiberado 
-      ? 'Ver Ficha' 
+      ? 'Ver ficha' 
       : (isBloqueado 
-        ? 'Ver Bloqueio' 
-        : (isEmTriagem ? 'Continuar Triagem' : 'Iniciar Triagem'));
+        ? 'Ver bloqueio' 
+        : (isEmTriagem ? 'Continuar triagem' : 'Iniciar triagem'));
     const btnIcone = isLiberado 
       ? 'fa-file-lines' 
       : (isBloqueado ? 'fa-ban' : 'fa-clipboard-check');
@@ -686,7 +701,7 @@ function renderizarWorklist() {
         <td><strong>${item.horario}</strong></td>
         <td>
           <span style="font-family: var(--font-mono); font-weight: 700;">#${item.atendimento}</span>
-          ${item.sequenciaProcedimentoInterno ? `<div style="font-size: 0.72rem; color: var(--purple-300); font-weight: 600;">Seq: ${item.sequenciaProcedimentoInterno}</div>` : ''}
+          ${(item.nrSeqProcInterno || item.sequenciaProcedimentoInterno) ? `<div style="font-size: 0.72rem; color: var(--purple-400); font-weight: 600;" title="Seq. interno: ${item.nrSeqProcInterno || item.sequenciaProcedimentoInterno}">Seq. interno: ${item.nrSeqProcInterno || item.sequenciaProcedimentoInterno}</div>` : ''}
         </td>
         <td>
           <div class="paciente-col">
@@ -730,7 +745,42 @@ function obterPerguntasExameAtual() {
    6. FICHA DE TRIAGEM, CHECKLIST E SEMÁFORO CLÍNICO
    ============================================================================== */
 async function abrirTriagem(exameId) {
-  const item = UIState.exames.find(e => e.id === exameId);
+  let item = UIState.exames.find(e => e.id === exameId);
+  if (!item && UIState.online && exameId && exameId < 1000000000) {
+    try {
+      const remoto = await ApiClient.obterExamePorId(exameId);
+      if (remoto && remoto.id) {
+        item = {
+          id: remoto.id,
+          atendimento: remoto.atendimento,
+          sequenciaProcedimentoInterno: remoto.nrSeqProcInterno || remoto.sequenciaProcedimentoInterno || remoto.sequenciaInterna || null,
+          nrSeqProcInterno: remoto.nrSeqProcInterno || remoto.sequenciaProcedimentoInterno || remoto.sequenciaInterna || null,
+          pacienteNome: remoto.pacienteNome,
+          documentoCpf: remoto.pacienteCpf || remoto.documentoCpf,
+          idade: remoto.idade,
+          sexo: remoto.sexo,
+          pesoKg: remoto.pesoKg,
+          modalidade: remoto.modalidadeDescricao || (remoto.modalidade === 1 ? 'TC' : 'RM'),
+          tipoFormulario: remoto.tipoFormulario || (remoto.modalidade === 1 ? 'TC_TORAX' : 'RM_COLUNA'),
+          segmentoLado: remoto.segmentoLado || null,
+          motivoExame: remoto.motivoExame || null,
+          medicoSolicitante: remoto.medicoSolicitante || null,
+          convenio: remoto.convenio || 'Unimed',
+          procedimento: remoto.descricaoExame || remoto.procedimento,
+          sala: remoto.sala,
+          horario: remoto.horarioAgendado ? new Date(remoto.horarioAgendado).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '08:00',
+          status: normalizarStatus(remoto.status, remoto.statusDescricao),
+          statusRiscoSemaforo: remoto.statusRiscoSemaforo,
+          possuiTriagem: remoto.possuiTriagem,
+          volumeContrasteMl: remoto.volumeContrasteMl,
+          caminhoArquivoArmazenado: remoto.caminhoArquivoArmazenado || null
+        };
+        UIState.exames.unshift(item);
+      }
+    } catch (errEx) {
+      console.warn('Não foi possível carregar exame por id:', errEx.message);
+    }
+  }
   if (!item) return;
 
   UIState.exameSelecionado = item;
@@ -751,7 +801,7 @@ async function abrirTriagem(exameId) {
   document.getElementById('triagemAtendimentoNum').textContent = item.atendimento;
 
   const elemSeq = document.getElementById('triagemSeqInterna');
-  if (elemSeq) elemSeq.textContent = item.sequenciaProcedimentoInterno || '-';
+  if (elemSeq) elemSeq.textContent = item.nrSeqProcInterno || item.sequenciaProcedimentoInterno || '-';
 
   document.getElementById('triagemCpf').textContent = item.documentoCpf;
   document.getElementById('triagemIdade').textContent = `${item.idade} anos`;
@@ -912,7 +962,7 @@ function configurarPainelAssinatura(item, isConcluidoOuAssinado) {
         btnResetAdmin.onclick = async () => {
           if (confirm(`Deseja retornar o Exame #${item.atendimento} para o status AGUARDANDO_TRIAGEM?`)) {
             await ApiClient.resetStatusExameAdmin(item.id);
-            showToast(`Exame #${item.atendimento} resetado para Aguardando Triagem.`, 'success');
+            showToast(`Exame #${item.atendimento} resetado para aguardando triagem.`, 'success');
             await carregarWorklist();
             abrirTriagem(item.id);
           }
@@ -925,7 +975,7 @@ function configurarPainelAssinatura(item, isConcluidoOuAssinado) {
     const btnVerDoc = document.getElementById('btnVerLaudoArquivado');
     if (btnVerDoc) {
       btnVerDoc.onclick = () => {
-        exibirModalArquivoSalvo(item.caminhoArquivoArmazenado || 'C:\\Users\\vinicius.tomazi\\Documents\\Triagem_Arquivada.pdf');
+        exibirModalArquivoSalvo(item.caminhoArquivoArmazenado || '\\\\fsa\\anexos\\IMI\\Anexos_Formularios_PROJ\\Ficha_Triagem.html');
       };
     }
   } else {
@@ -1017,14 +1067,14 @@ function avaliarSemaforo() {
   if (impeditivosAtivos.length > 0 || isJaBloqueado) {
     banner.classList.add('semaforo-vermelho');
     orb.innerHTML = '<i class="fa-solid fa-ban"></i>';
-    titulo.textContent = 'SEMÁFORO CLÍNICO: BLOQUEIO DE SEGURANÇA MANDATÓRIO';
+    titulo.textContent = 'Semáforo clínico: bloqueio de segurança mandatório';
 
     let motivosHtml = '';
     if (impeditivosAtivos.length > 0) {
       motivosHtml = `
         <div style="margin-top: 6px;">
           <div style="font-weight: 700; color: #fca5a5; margin-bottom: 4px;">
-            <i class="fa-solid fa-triangle-exclamation"></i> ${impeditivosAtivos.length} Impedimento(s) Ativo(s) Detectado(s):
+            <i class="fa-solid fa-triangle-exclamation"></i> ${impeditivosAtivos.length} impedimento(s) ativo(s) detectado(s):
           </div>
           <ul style="margin: 0; padding-left: 18px; font-size: 0.85rem; color: #fecaca; line-height: 1.4;">
             ${impeditivosAtivos.map(m => `<li><strong>[Q${m.index}]</strong> ${m.enunciado}</li>`).join('')}
@@ -1042,7 +1092,7 @@ function avaliarSemaforo() {
       </div>
     `;
 
-    badge.textContent = 'BLOQUEIO VERMELHO';
+    badge.textContent = 'Bloqueio vermelho';
 
     if (btnLiberar) {
       btnLiberar.style.display = 'none';
@@ -1053,18 +1103,18 @@ function avaliarSemaforo() {
       btnBloquear.style.display = 'inline-flex';
       btnBloquear.disabled = false;
       btnBloquear.innerHTML = isJaBloqueado
-        ? '<i class="fa-solid fa-ban"></i> Exame Bloqueado (Ver Detalhes)'
-        : '<i class="fa-solid fa-ban"></i> Encerrar Ficha &amp; Bloquear Exame';
+        ? '<i class="fa-solid fa-ban"></i> Exame bloqueado (ver detalhes)'
+        : '<i class="fa-solid fa-ban"></i> Encerrar ficha &amp; bloquear exame';
     }
   } else if (atencoesAtivas.length > 0) {
     banner.classList.add('semaforo-amarelo');
     orb.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
-    titulo.textContent = 'SEMÁFORO CLÍNICO: ATENÇÃO CLÍNICA REQUERIDA';
+    titulo.textContent = 'Semáforo clínico: atenção clínica requerida';
 
     const motivosHtml = `
       <div style="margin-top: 6px;">
         <div style="font-weight: 700; color: #fde047; margin-bottom: 4px;">
-          <i class="fa-solid fa-circle-exclamation"></i> ${atencoesAtivas.length} Alerta(s) Moderado(s):
+          <i class="fa-solid fa-circle-exclamation"></i> ${atencoesAtivas.length} alerta(s) moderado(s):
         </div>
         <ul style="margin: 0; padding-left: 18px; font-size: 0.85rem; color: #fef08a; line-height: 1.4;">
           ${atencoesAtivas.map(m => `<li><strong>[Q${m.index}]</strong> ${m.enunciado}</li>`).join('')}
@@ -1079,26 +1129,26 @@ function avaliarSemaforo() {
       </div>
     `;
 
-    badge.textContent = 'ALERTA AMARELO';
+    badge.textContent = 'Alerta amarelo';
 
     if (btnLiberar) {
       btnLiberar.style.display = 'inline-flex';
       btnLiberar.disabled = false;
-      btnLiberar.innerHTML = '<i class="fa-solid fa-shield-check"></i> Liberar Exame com Alerta';
+      btnLiberar.innerHTML = '<i class="fa-solid fa-shield-check"></i> Liberar exame com alerta';
     }
 
     if (btnBloquear) btnBloquear.style.display = 'none';
   } else {
     banner.classList.add('semaforo-verde');
     orb.innerHTML = '<i class="fa-solid fa-check"></i>';
-    titulo.textContent = 'SEMÁFORO CLÍNICO: NENHUM IMPEDIMENTO DETECTADO';
+    titulo.textContent = 'Semáforo clínico: nenhum impedimento detectado';
     descricao.textContent = 'Todos os critérios de segurança validados. O exame está apto para liberação operacional.';
-    badge.textContent = 'LIBERADO VERDE';
+    badge.textContent = 'Liberado verde';
 
     if (btnLiberar) {
       btnLiberar.style.display = 'inline-flex';
       btnLiberar.disabled = false;
-      btnLiberar.innerHTML = '<i class="fa-solid fa-shield-check"></i> Liberar Exame com Segurança';
+      btnLiberar.innerHTML = '<i class="fa-solid fa-shield-check"></i> Liberar exame com segurança';
     }
 
     if (btnBloquear) btnBloquear.style.display = 'none';
@@ -1170,15 +1220,35 @@ function initCalculadora() {
         if (itemFila) itemFila.caminhoArquivoArmazenado = caminho;
       }
 
-      showToast(`Exame #${UIState.exameSelecionado.atendimento} assinado digitalmente e liberado!`, 'success');
+      // 3. Atualiza estado em memória de examesTasyDia se carregado
+      if (Array.isArray(UIState.examesTasyDia)) {
+        const curSeq = UIState.exameSelecionado.nrSeqProcInterno || UIState.exameSelecionado.sequenciaProcedimentoInterno;
+        const itemTasy = UIState.examesTasyDia.find(t => 
+          t.atendimento === UIState.exameSelecionado.atendimento &&
+          (curSeq ? String(t.nrSeqProcInterno || t.sequenciaProcedimentoInterno) === String(curSeq) : true)
+        );
+        if (itemTasy) {
+          itemTasy.triado = true;
+          itemTasy.statusTriagem = 'LIBERADO';
+          itemTasy.exameLocalId = UIState.exameSelecionado.id;
+          if (caminho) itemTasy.caminhoArquivoArmazenado = caminho;
+        }
+      }
 
-      // 3. Recarrega a Worklist do servidor
+      // 4. Recarrega a Worklist do servidor
       await carregarWorklist();
 
-      // 4. Retorna para a fila de exames
+      // 5. Se a tabela de exames do Tasy estiver na tela, atualiza-a em sincronia
+      if (document.getElementById('tbodyTasyExamesDia')) {
+        const inputData = document.getElementById('inputDataTasy')?.value;
+        const inputBusca = document.getElementById('inputBuscaTasy')?.value;
+        carregarExamesDiaTasy(inputData, inputBusca).catch(() => {});
+      }
+
+      // 6. Retorna para a fila de exames
       trocarView('view-worklist');
 
-      // 5. Se gerou documento, exibe comprovante
+      // 7. Se gerou documento, exibe comprovante
       if (caminho) {
         exibirModalArquivoSalvo(caminho);
       }
@@ -1194,6 +1264,55 @@ function initCalculadora() {
 async function persistirTriagem(liberar = false) {
   if (!UIState.exameSelecionado) return null;
 
+  const obsElem = document.getElementById('txtObservacoesClinicas') || document.getElementById('triagemObservacoes');
+  const pesoDigitado = parseFloat(document.getElementById('calcPesoInput')?.value) || UIState.exameSelecionado.pesoKg || 70;
+  const alturaDigitada = parseFloat(document.getElementById('calcAlturaInput')?.value) || UIState.exameSelecionado.alturaCm || 170;
+  const indicacaoDigitada = document.getElementById('calcIndicacaoClinicaInput')?.value.trim() || UIState.exameSelecionado.indicacaoClinica || '';
+
+  UIState.exameSelecionado.pesoKg = pesoDigitado;
+  UIState.exameSelecionado.alturaCm = alturaDigitada;
+  UIState.exameSelecionado.indicacaoClinica = indicacaoDigitada;
+
+  // Se o exame possuir ID temporário gerado no front-end (ex: Date.now() a partir do Tasy),
+  // sincroniza/cadastra oficialmente no MySQL para obter o ID numérico do banco antes de salvar
+  if (UIState.online && UIState.exameSelecionado.id > 1000000000) {
+    try {
+      const item = UIState.exameSelecionado;
+      const syncRes = await ApiClient.importarExameTasy({
+        atendimento: item.atendimento,
+        sequenciaProcedimentoInterno: item.sequenciaProcedimentoInterno,
+        pacienteNome: item.pacienteNome,
+        cpf: item.documentoCpf,
+        idade: item.idade,
+        dataNascimento: item.dataNascimento,
+        sexo: item.sexo,
+        telefone: item.telefone,
+        pesoKg: pesoDigitado,
+        alturaCm: alturaDigitada,
+        indicacaoClinica: indicacaoDigitada,
+        modalidade: item.modalidade || 'RM',
+        tipoFormulario: item.tipoFormulario || 'RM_COLUNA',
+        segmentoLado: item.segmentoLado || 'Padrão',
+        procedimentoNome: item.procedimento,
+        codigoProcedimento: item.codigoProcedimento,
+        medicoSolicitante: item.medicoSolicitante,
+        convenio: item.convenio,
+        sala: item.sala,
+        dataEntrada: item.dataEntrada
+      });
+
+      if (syncRes && syncRes.id) {
+        const idAntigo = item.id;
+        item.id = syncRes.id;
+        const itemFila = UIState.exames.find(e => e.id === idAntigo);
+        if (itemFila) itemFila.id = syncRes.id;
+      }
+    } catch (errSync) {
+      console.error('Falha ao sincronizar exame Tasy com a base:', errSync);
+      throw new Error(`Falha ao registrar exame no banco de dados antes da liberação: ${errSync.message}`);
+    }
+  }
+
   const perguntas = obterPerguntasExameAtual();
 
   const respostasDto = perguntas.map(p => ({
@@ -1203,15 +1322,6 @@ async function persistirTriagem(liberar = false) {
     impeditivo: p.impeditivo,
     justificativa: null
   }));
-
-  const obsElem = document.getElementById('txtObservacoesClinicas') || document.getElementById('triagemObservacoes');
-  const pesoDigitado = parseFloat(document.getElementById('calcPesoInput')?.value) || UIState.exameSelecionado.pesoKg || 70;
-  const alturaDigitada = parseFloat(document.getElementById('calcAlturaInput')?.value) || UIState.exameSelecionado.alturaCm || 170;
-  const indicacaoDigitada = document.getElementById('calcIndicacaoClinicaInput')?.value.trim() || UIState.exameSelecionado.indicacaoClinica || '';
-
-  UIState.exameSelecionado.pesoKg = pesoDigitado;
-  UIState.exameSelecionado.alturaCm = alturaDigitada;
-  UIState.exameSelecionado.indicacaoClinica = indicacaoDigitada;
 
   const payload = {
     exameId: UIState.exameSelecionado.id,
@@ -1288,7 +1398,7 @@ function abrirModalConfirmacaoBloqueio() {
     : `Exame NÃO REALIZADO por contraindicação ou recusa clínica na triagem pré-exame. Orientado a contatar médico solicitante.`;
 
   container.innerHTML = `
-    <div style="background: #0f172a; border: 1px solid rgba(239, 68, 68, 0.5); border-radius: 14px; max-width: 680px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 26px 30px; box-shadow: 0 25px 60px -15px rgba(239, 68, 68, 0.35); color: #f8fafc; font-family: var(--font-body, sans-serif);">
+    <div style="background: var(--bg-card); border: 1px solid rgba(239, 68, 68, 0.5); border-radius: 14px; max-width: 680px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 26px 30px; box-shadow: 0 25px 60px -15px rgba(239, 68, 68, 0.35); color: var(--text-primary); font-family: var(--font-body, sans-serif);">
       
       <!-- Cabeçalho de Alerta -->
       <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; border-bottom: 1px solid rgba(239, 68, 68, 0.25); padding-bottom: 16px;">
@@ -1296,10 +1406,10 @@ function abrirModalConfirmacaoBloqueio() {
           <i class="fa-solid fa-ban"></i>
         </div>
         <div>
-          <h3 style="font-family: var(--font-title); font-size: 1.3rem; font-weight: 800; color: #fff; margin: 0;">
-            Bloqueio de Segurança Clínica Mandatório
+          <h3 style="font-family: var(--font-title); font-size: 1.3rem; font-weight: 800; color: var(--text-primary); margin: 0;">
+            Bloqueio de segurança clínica mandatório
           </h3>
-          <p style="font-size: 0.85rem; color: #fca5a5; margin-top: 4px;">
+          <p style="font-size: 0.85rem; color: var(--coral-400); margin-top: 4px;">
             Este exame NÃO PODE ser liberado por apresentar critérios de contraindicação absoluta (Protocolo de Aviação).
           </p>
         </div>
@@ -1307,44 +1417,44 @@ function abrirModalConfirmacaoBloqueio() {
 
       <!-- Seção 1: Por que está sendo recusado -->
       <div style="margin-bottom: 18px;">
-        <div style="font-size: 0.8rem; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
-          1. Motivo(s) da Recusa e Impedimento Clínico
+        <div style="font-size: 0.8rem; font-weight: 700; color: var(--coral-400); letter-spacing: 0.5px; margin-bottom: 8px;">
+          1. Motivo(s) da recusa e impedimento clínico
         </div>
         ${motivosListHtml}
-        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 6px; padding: 10px 14px; font-size: 0.82rem; color: #94a3b8;">
-          <strong style="color: #38bdf8;">Justificativa Médica Radiológica:</strong> ${explicacaoRisco}
+        <div style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px 14px; font-size: 0.82rem; color: var(--text-secondary);">
+          <strong style="color: var(--cyan-400);">Justificativa Médica Radiológica:</strong> ${explicacaoRisco}
         </div>
       </div>
 
       <!-- Seção 2: Conferência dos Dados do Paciente e Exame -->
       <div style="margin-bottom: 18px;">
-        <div style="font-size: 0.8rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
-          2. Conferência Obrigatória dos Dados do Exame
+        <div style="font-size: 0.8rem; font-weight: 700; color: var(--cyan-400); letter-spacing: 0.5px; margin-bottom: 8px;">
+          2. Conferência obrigatória dos dados do exame
         </div>
-        <div style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 14px 16px;">
+        <div style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 14px 16px;">
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; font-size: 0.85rem;">
             <div>
-              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Paciente:</span>
-              <strong style="color: #fff;">${item.pacienteNome}</strong>
+              <span style="color: var(--text-muted); font-size: 0.75rem; display: block; font-weight: 600;">Paciente:</span>
+              <strong style="color: var(--text-primary);">${item.pacienteNome}</strong>
             </div>
             <div>
-              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Atendimento / CPF:</span>
-              <span style="color: #38bdf8; font-family: var(--font-mono); font-weight: 700;">#${item.atendimento}</span> | ${item.documentoCpf}
+              <span style="color: var(--text-muted); font-size: 0.75rem; display: block; font-weight: 600;">Atendimento / CPF:</span>
+              <span style="color: var(--cyan-400); font-family: var(--font-mono); font-weight: 700;">#${item.atendimento}</span> | ${item.documentoCpf}
             </div>
             <div>
-              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Idade / Sexo:</span>
+              <span style="color: var(--text-muted); font-size: 0.75rem; display: block; font-weight: 600;">Idade / sexo:</span>
               <span>${item.idade} anos | ${item.sexo === 'M' ? 'Masculino' : 'Feminino'}</span>
             </div>
             <div>
-              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Procedimento Agendado:</span>
-              <strong style="color: #fff;">${item.procedimento}</strong>
+              <span style="color: var(--text-muted); font-size: 0.75rem; display: block; font-weight: 600;">Procedimento agendado:</span>
+              <strong style="color: var(--text-primary);">${item.procedimento}</strong>
             </div>
             <div>
-              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Modalidade / Sala:</span>
+              <span style="color: var(--text-muted); font-size: 0.75rem; display: block; font-weight: 600;">Modalidade / sala:</span>
               <span class="badge-modalidade ${item.modalidade === 'TC' ? 'badge-tc' : 'badge-rm'}" style="margin-right: 6px;">${item.modalidade}</span> Sala ${item.sala}
             </div>
             <div>
-              <span style="color: #64748b; font-size: 0.75rem; display: block; text-transform: uppercase; font-weight: 600;">Médico Solicitante / Convênio:</span>
+              <span style="color: #64748b; font-size: 0.75rem; display: block; font-weight: 600;">Médico solicitante / convênio:</span>
               <span>${item.medicoSolicitante || 'Dr. Roberto Albuquerque'} (${item.convenio || 'Unimed'})</span>
             </div>
           </div>
@@ -1353,8 +1463,8 @@ function abrirModalConfirmacaoBloqueio() {
 
       <!-- Seção 3: Conduta / Justificativa do Operador -->
       <div style="margin-bottom: 18px;">
-        <label for="txtCondutaBloqueio" style="display: block; font-size: 0.8rem; font-weight: 700; color: #e2e8f0; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-          3. Conduta Operacional Registrada no Laudo
+        <label for="txtCondutaBloqueio" style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--text-primary); letter-spacing: 0.5px; margin-bottom: 6px;">
+          3. Conduta operacional registrada no laudo
         </label>
         <textarea id="txtCondutaBloqueio" class="form-input" rows="2" style="width: 100%; font-size: 0.85rem; border-color: rgba(239, 68, 68, 0.4);">${textoCondutaPadrao}</textarea>
       </div>
@@ -1362,7 +1472,7 @@ function abrirModalConfirmacaoBloqueio() {
       <!-- Checkbox de Confirmação -->
       <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px 14px; margin-bottom: 22px; display: flex; align-items: flex-start; gap: 10px;">
         <input type="checkbox" id="chkConfirmaDadosBloqueio" style="width: 18px; height: 18px; margin-top: 2px; cursor: pointer; accent-color: var(--coral-500);">
-        <label for="chkConfirmaDadosBloqueio" style="font-size: 0.85rem; color: #f8fafc; cursor: pointer; line-height: 1.4;">
+        <label for="chkConfirmaDadosBloqueio" style="font-size: 0.85rem; color: var(--text-primary); cursor: pointer; line-height: 1.4;">
           <strong>Confirmo que os dados do paciente foram conferidos verbalmente</strong> e que as contraindicações impeditivas foram ratificadas junto ao paciente/acompanhante.
         </label>
       </div>
@@ -1370,10 +1480,10 @@ function abrirModalConfirmacaoBloqueio() {
       <!-- Ações do Modal -->
       <div style="display: flex; justify-content: flex-end; align-items: center; gap: 12px; border-top: 1px solid rgba(148, 163, 184, 0.2); padding-top: 16px;">
         <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalBloqueioConfirmacao').remove()">
-          <i class="fa-solid fa-arrow-left"></i> Voltar e Revisar
+          <i class="fa-solid fa-arrow-left"></i> Voltar e revisar
         </button>
         <button type="button" class="btn-bloquear-final" id="btnConfirmarBloqueioModal" disabled style="opacity: 0.5; cursor: not-allowed;">
-          <i class="fa-solid fa-ban"></i> Confirmar Bloqueio &amp; Encerrar Ficha
+          <i class="fa-solid fa-ban"></i> Confirmar bloqueio &amp; encerrar ficha
         </button>
       </div>
     </div>
@@ -1423,10 +1533,33 @@ function abrirModalConfirmacaoBloqueio() {
       // 4. Remove o modal de confirmação
       document.getElementById('modalBloqueioConfirmacao')?.remove();
 
-      showToast(`Exame #${item.atendimento} BLOQUEADO por segurança clínica. Ficha encerrada!`, 'success');
+      // Atualiza também no array de exames do Tasy em memória se presente
+      if (Array.isArray(UIState.examesTasyDia)) {
+        const itemSeq = item.nrSeqProcInterno || item.sequenciaProcedimentoInterno;
+        const itemTasy = UIState.examesTasyDia.find(t => 
+          t.atendimento === item.atendimento &&
+          (itemSeq ? String(t.nrSeqProcInterno || t.sequenciaProcedimentoInterno) === String(itemSeq) : true)
+        );
+        if (itemTasy) {
+          itemTasy.triado = true;
+          itemTasy.statusTriagem = 'BLOQUEADO_SEGURANCA';
+          itemTasy.exameLocalId = item.id;
+          if (caminho) itemTasy.caminhoArquivoArmazenado = caminho;
+        }
+      }
+
+      showToast(`Exame #${item.atendimento} bloqueado por segurança clínica. Ficha encerrada!`, 'success');
 
       // 5. Recarrega a fila e volta para a Worklist
       await carregarWorklist();
+
+      // Recarrega lista do Tasy
+      if (document.getElementById('tbodyTasyExamesDia')) {
+        const inputData = document.getElementById('inputDataTasy')?.value;
+        const inputBusca = document.getElementById('inputBuscaTasy')?.value;
+        carregarExamesDiaTasy(inputData, inputBusca).catch(() => {});
+      }
+
       trocarView('view-worklist');
 
       // 6. Exibe comprovante do laudo arquivado se disponível
@@ -1437,7 +1570,7 @@ function abrirModalConfirmacaoBloqueio() {
     } catch (err) {
       showToast(`Erro ao bloquear exame: ${err.message}`, 'error');
       btnConfirmar.disabled = false;
-      btnConfirmar.innerHTML = '<i class="fa-solid fa-ban"></i> Confirmar Bloqueio &amp; Encerrar Ficha';
+      btnConfirmar.innerHTML = '<i class="fa-solid fa-ban"></i> Confirmar bloqueio &amp; encerrar ficha';
     }
   });
 }
@@ -1457,20 +1590,20 @@ function exibirModalArquivoSalvo(caminho) {
   container.style.zIndex = '9999';
 
   container.innerHTML = `
-    <div style="background: #0f172a; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 12px; max-width: 620px; width: 90%; padding: 28px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); color: #f8fafc;">
+    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; max-width: 620px; width: 90%; padding: 28px; box-shadow: var(--shadow-card); color: var(--text-primary);">
       <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 16px;">
-        <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(16, 185, 129, 0.2); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+        <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(16, 185, 129, 0.2); color: var(--emerald-400); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
           <i class="fa-solid fa-file-circle-check"></i>
         </div>
         <div>
-          <h3 style="font-family: var(--font-title); font-size: 1.25rem; font-weight: 700; color: #fff;">Ficha Clínica Arquivada com Sucesso!</h3>
-          <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 2px;">Documento timbrado oficial gerado e salvo na pasta Documentos do usuário.</p>
+          <h3 style="font-family: var(--font-title); font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">Ficha clínica arquivada com sucesso!</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">Documento timbrado oficial gerado e arquivado no servidor de rede (\\\\fsa\\anexos).</p>
         </div>
       </div>
 
-      <div style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;">
-        <div style="font-size: 0.75rem; color: #38bdf8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Caminho Gravado no Banco de Dados (caminho_arquivo_armazenado):</div>
-        <div style="font-family: var(--font-mono); font-size: 0.85rem; color: #34d399; word-break: break-all; margin-top: 6px; user-select: all;">
+      <div style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;">
+        <div style="font-size: 0.75rem; color: var(--cyan-400); font-weight: 700; letter-spacing: 0.5px;">Caminho gravado no banco de dados (caminho_arquivo_armazenado):</div>
+        <div style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--emerald-400); word-break: break-all; margin-top: 6px; user-select: all;">
           ${caminho}
         </div>
       </div>
@@ -1480,7 +1613,7 @@ function exibirModalArquivoSalvo(caminho) {
           <i class="fa-solid fa-xmark"></i> Fechar
         </button>
         <button type="button" class="btn btn--primary" onclick="window.print()">
-          <i class="fa-solid fa-print"></i> Imprimir Laudo
+          <i class="fa-solid fa-print"></i> Imprimir laudo
         </button>
       </div>
     </div>
@@ -1664,13 +1797,13 @@ async function abrirModalWorklistLab() {
 
   container.innerHTML = `
     <div style="background: var(--bg-card); border: 1px solid var(--bg-card-border); border-radius: 14px; max-width: 900px; width: 95%; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); overflow: hidden;">
-      <div style="padding: 20px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
+      <div style="padding: 20px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: var(--bg-card-subtle);">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 40px; height: 40px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
             <i class="fa-solid fa-server"></i>
           </div>
           <div>
-            <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">Banco de Dados 2: Worklist Laboratorial (HIS/RIS)</h3>
+            <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: var(--text-primary);">Banco de dados 2: worklist laboratorial (HIS/RIS)</h3>
             <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">Visualização em tempo real dos agendamentos médicos e formulários clínicos associados.</p>
           </div>
         </div>
@@ -1685,7 +1818,7 @@ async function abrirModalWorklistLab() {
         </div>
       </div>
 
-      <div style="padding: 14px 24px; border-top: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.7);">
+      <div style="padding: 14px 24px; border-top: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: var(--bg-card-subtle);">
         <span style="font-size: 0.8rem; color: var(--emerald-400);">
           <i class="fa-solid fa-circle-check"></i> Conexão ativa com o banco da clínica (worklist_lab.db / MySQL)
         </span>
@@ -1717,9 +1850,9 @@ async function abrirModalWorklistLab() {
             <th>Atendimento</th>
             <th>Paciente &amp; CPF</th>
             <th>Procedimento</th>
-            <th>Formulário Especializado</th>
-            <th>Região / Lado</th>
-            <th>Médico &amp; Convênio</th>
+            <th>Formulário especializado</th>
+            <th>Região / lado</th>
+            <th>Médico &amp; convênio</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -1728,7 +1861,7 @@ async function abrirModalWorklistLab() {
             <tr>
               <td><span style="font-family: var(--font-mono); font-weight: 700;">#${p.atendimento}</span></td>
               <td>
-                <div style="font-weight: 600; color: #fff;">${p.paciente}</div>
+                <div style="font-weight: 600; color: var(--text-primary);">${p.paciente}</div>
                 <div style="font-size: 0.75rem; color: var(--text-muted);">CPF: ${p.cpf}</div>
               </td>
               <td>
@@ -2150,7 +2283,7 @@ async function carregarProcedimentosTasyUI() {
     const total = res.total || 0;
 
     if (contador) {
-      contador.innerHTML = `Exibindo <strong style="color: #fff;">${itens.length}</strong> de <strong style="color: var(--cyan-300);">${total}</strong> procedimentos encontrados`;
+      contador.innerHTML = `Exibindo <strong style="color: var(--text-primary);">${itens.length}</strong> de <strong style="color: var(--cyan-300);">${total}</strong> procedimentos encontrados`;
     }
 
     if (itens.length === 0) {
@@ -2181,7 +2314,7 @@ async function carregarProcedimentosTasyUI() {
               ${mod}
             </span>
           </td>
-          <td style="font-weight: 500; color: #f8fafc;">
+          <td style="font-weight: 500; color: var(--text-primary);">
             ${item.descricao}
           </td>
           <td style="text-align: right;">
@@ -2240,7 +2373,7 @@ async function executarSqlTasyUI() {
     }
 
     if (meta) {
-      meta.innerHTML = `<span style="color: var(--emerald-400);"><i class="fa-solid fa-circle-check"></i> Consulta executada com sucesso:</span> <strong style="color: #fff;">${res.totalLinhas}</strong> linhas retornadas em <strong style="color: var(--cyan-300);">${res.tempoExecucaoMs}ms</strong>`;
+      meta.innerHTML = `<span style="color: var(--emerald-400);"><i class="fa-solid fa-circle-check"></i> Consulta executada com sucesso:</span> <strong style="color: var(--text-primary);">${res.totalLinhas}</strong> linhas retornadas em <strong style="color: var(--cyan-300);">${res.tempoExecucaoMs}ms</strong>`;
     }
 
     if (res.totalLinhas === 0) {
@@ -2511,25 +2644,28 @@ function renderizarDicionarioProtocolos(protocoloId) {
 
   if (listaProcsContainer) {
     if (procs.length === 0) {
-      listaProcsContainer.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted); padding: 8px;">Nenhum procedimento associado.</div>';
+      listaProcsContainer.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted); padding: 8px;">Nenhum procedimento do Tasy associado a este formulário.</div>';
     } else {
-      listaProcsContainer.innerHTML = procs.map(proc => `
-        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <code style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--cyan-400); background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px;">TUSS ${proc.codigoTuss}</code>
-            <span style="font-size: 0.82rem; font-weight: 500; color: #fff;">${proc.nome}</span>
+      listaProcsContainer.innerHTML = procs.map(proc => {
+        const seqBadge = proc.sequenciaTasy && String(proc.sequenciaTasy) !== String(proc.codigoTuss)
+          ? `<span style="font-family: var(--font-mono); font-size: 0.68rem; color: var(--purple-400); background: rgba(168,85,247,0.12); padding: 2px 5px; border-radius: 4px;" title="Sequência Interna Tasy">Seq ${proc.sequenciaTasy}</span>`
+          : '';
+        return `
+          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <code style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--cyan-400); background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px; white-space: nowrap;" title="Código Tasy / TUSS">TASY ${proc.codigoTuss}</code>
+              ${seqBadge}
+              <span style="font-size: 0.82rem; font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${proc.nome}">${proc.nome}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+              <span class="badge-status" style="font-size: 0.7rem; background: var(--bg-card-subtle); color: var(--text-secondary); border: 1px solid var(--border-subtle);">${proc.regiao || 'Geral'}</span>
+              <button type="button" title="Desvincular procedimento deste formulário" onclick="adminExcluirProcedimento('${protocoloId}', '${proc.codigoTuss}')" style="background: none; border: none; color: var(--coral-400); cursor: pointer; padding: 2px 6px; font-size: 0.8rem;">
+                <i class="fa-solid fa-link-slash"></i>
+              </button>
+            </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <span class="badge-status" style="font-size: 0.7rem; background: rgba(255,255,255,0.05); color: var(--text-secondary);">${proc.regiao}</span>
-            <button type="button" title="Editar Procedimento" onclick="adminEditarProcedimento('${protocoloId}', '${proc.codigoTuss}')" style="background: none; border: none; color: var(--cyan-400); cursor: pointer; padding: 2px 5px; font-size: 0.8rem;">
-              <i class="fa-solid fa-pen"></i>
-            </button>
-            <button type="button" title="Desvincular do Formulário" onclick="adminExcluirProcedimento('${protocoloId}', '${proc.codigoTuss}')" style="background: none; border: none; color: var(--coral-400); cursor: pointer; padding: 2px 5px; font-size: 0.8rem;">
-              <i class="fa-solid fa-trash"></i>
-            </button>
-          </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
   }
 
@@ -2557,10 +2693,10 @@ function renderizarDicionarioProtocolos(protocoloId) {
         else if (ex.status === 'EM_TRIAGEM') { badgeClass = 'status-em-triagem'; label = 'Em Triagem'; }
 
         return `
-          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--amber-400); font-weight: 700;">#${ex.atendimento}</span>
-              <span style="font-size: 0.82rem; font-weight: 500; color: #fff;">${ex.pacienteNome}</span>
+              <span style="font-size: 0.82rem; font-weight: 500; color: var(--text-primary);">${ex.pacienteNome}</span>
               <span style="font-size: 0.72rem; color: var(--text-muted);">(${ex.sala} • ${ex.horario})</span>
             </div>
             <span class="badge-status ${badgeClass}" style="font-size: 0.7rem;">${label}</span>
@@ -2602,7 +2738,7 @@ function renderizarDicionarioProtocolos(protocoloId) {
     tr.innerHTML = `
       <td style="text-align: center; font-family: var(--font-mono); font-weight: 700; color: var(--cyan-400); font-size: 0.82rem;">#${idx + 1}</td>
       <td><code style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--cyan-400); background: rgba(56,189,248,0.1); padding: 3px 8px; border-radius: 4px;">${p.codigo}</code></td>
-      <td style="font-size: 0.88rem; font-weight: 500; color: #fff;">${p.enunciado}</td>
+      <td style="font-size: 0.88rem; font-weight: 500; color: var(--text-primary);">${p.enunciado}</td>
       <td><span class="badge-status ${badgeClass}">${labelTipo}</span></td>
       <td style="font-size: 0.85rem; color: ${meta.tipo === 'IMPEDITIVA' ? 'var(--coral-400)' : meta.tipo === 'ALERTA' ? 'var(--amber-400)' : 'var(--text-secondary)'}; font-weight: 600;">${meta.gatilho}</td>
       <td style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.4;">${meta.fundamento}</td>
@@ -2620,11 +2756,12 @@ function renderizarDicionarioProtocolos(protocoloId) {
 }
 
 /**
- * Busca um procedimento cadastrado pelo código TUSS/TISS/RIS em todos os protocolos do catálogo
+ * Busca um procedimento cadastrado pelo código Tasy/TUSS, sequência interna ou nome exato em todos os protocolos do catálogo
  */
-function buscarProcedimentoPorCodigoTuss(codigoTuss) {
-  if (!codigoTuss || !codigoTuss.trim()) return null;
-  const codLimpo = codigoTuss.trim().toUpperCase();
+function buscarProcedimentoPorCodigoTuss(codigoTuss, nomeProcedimento = null) {
+  const codLimpo = (codigoTuss ? String(codigoTuss) : '').trim().toUpperCase();
+  const nomeLimpo = (nomeProcedimento ? String(nomeProcedimento) : '').trim().toUpperCase();
+  if (!codLimpo && !nomeLimpo) return null;
 
   for (const protoKey of Object.keys(CATALOGO_PROCEDIMENTOS_FORMULARIO)) {
     const procs = CATALOGO_PROCEDIMENTOS_FORMULARIO[protoKey] || [];
@@ -2634,7 +2771,19 @@ function buscarProcedimentoPorCodigoTuss(codigoTuss) {
       modalidade: protoKey.startsWith('TC') ? 'TC' : 'RM'
     };
     for (const proc of procs) {
-      if (proc.codigoTuss && proc.codigoTuss.trim().toUpperCase() === codLimpo) {
+      const pCod = (proc.codigoTuss ? String(proc.codigoTuss) : '').trim().toUpperCase();
+      const pSeq = (proc.sequenciaTasy ? String(proc.sequenciaTasy) : '').trim().toUpperCase();
+      const pCodTasy = (proc.codigoProcedimento ? String(proc.codigoProcedimento) : '').trim().toUpperCase();
+      const pNome = (proc.nome ? String(proc.nome) : '').trim().toUpperCase();
+
+      if (codLimpo && (pCod === codLimpo || pSeq === codLimpo || pCodTasy === codLimpo)) {
+        return {
+          protocoloId: protoKey,
+          protocoloInfo: info,
+          procedimento: proc
+        };
+      }
+      if (nomeLimpo && pNome && pNome === nomeLimpo) {
         return {
           protocoloId: protoKey,
           protocoloInfo: info,
@@ -2786,15 +2935,15 @@ function adminReagirAoCodigoTuss(codigo, prefixo) {
           <div style="display: flex; align-items: center; gap: 10px;">
             <i class="fa-solid fa-lock" style="color: var(--emerald-400); font-size: 1.15rem;"></i>
             <div>
-              <div style="font-weight: 600; color: #fff; font-size: 0.88rem;">
+              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.88rem;">
                 ${proc.nome}
               </div>
               <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
-                Formulário Vinculado: <strong style="color: var(--cyan-400);">${protoInfo.nome}</strong> (${protoInfo.modalidade}) | Região: <strong style="color: #fff;">${proc.regiao || 'Padrão'}</strong>
+                Formulário Vinculado: <strong style="color: var(--cyan-400);">${protoInfo.nome}</strong> (${protoInfo.modalidade}) | Região: <strong style="color: var(--text-primary);">${proc.regiao || 'Padrão'}</strong>
               </div>
             </div>
           </div>
-          <span style="font-size: 0.72rem; padding: 4px 9px; border-radius: 6px; background: rgba(16, 185, 129, 0.25); color: #34d399; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+          <span style="font-size: 0.72rem; padding: 4px 9px; border-radius: 6px; background: rgba(16, 185, 129, 0.25); color: var(--emerald-400); font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
             <i class="fa-solid fa-check"></i> Form Vinculado
           </span>
         </div>
@@ -2853,15 +3002,15 @@ function adminAbrirModalVincularProcedimento(protocoloId) {
   container.style.zIndex = '9999';
 
   container.innerHTML = `
-    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 14px; max-width: 540px; width: 95%; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
-      <div style="padding: 16px 20px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
+    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 14px; max-width: 680px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
+      <div style="padding: 16px 20px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: var(--bg-card-subtle);">
         <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">
-            <i class="fa-solid fa-link"></i>
+          <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">
+            <i class="fa-solid fa-database"></i>
           </div>
           <div>
-            <h3 style="font-family: var(--font-title); font-size: 1.1rem; color: #fff;">Associar Exame ao Formulário</h3>
-            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Protocolo: <strong style="color: var(--cyan-400);">${info.nome}</strong></p>
+            <h3 style="font-family: var(--font-title); font-size: 1.12rem; color: var(--text-primary);">Associar exame do Tasy ao formulário</h3>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Protocolo: <strong style="color: var(--cyan-400);">${info.nome}</strong> <span style="margin-left: 6px; font-size: 0.72rem; color: var(--emerald-400);"><i class="fa-solid fa-rotate"></i> Sincronismo oficial Tasy Oracle</span></p>
           </div>
         </div>
         <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalVincularProcAdmin').remove()" style="padding: 5px 8px;">
@@ -2869,52 +3018,63 @@ function adminAbrirModalVincularProcedimento(protocoloId) {
         </button>
       </div>
 
-      <form id="formVincularProcModal" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
-        <!-- Busca Rápida no Tasy -->
-        <div style="background: rgba(15, 23, 42, 0.45); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
-          <div style="font-size: 0.78rem; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: space-between;">
-            <span style="display: flex; align-items: center; gap: 6px;">
-              <i class="fa-solid fa-database" style="color: var(--amber-400);"></i> Buscar na Base do Tasy (Oracle):
-            </span>
-            <span style="font-size: 0.7rem; color: var(--text-muted);">Preenchimento automático</span>
+      <form id="formVincularProcModal" style="padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
+        <!-- Aviso de Sincronização Oficial (Sem Inserção Manual) -->
+        <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--text-secondary);">
+          <i class="fa-solid fa-shield-halved" style="color: var(--cyan-400); font-size: 1.1rem; flex-shrink: 0;"></i>
+          <div>
+            Para evitar erros de digitação e garantir o sincronismo automático com a fila diária, selecione os procedimentos diretamente da base oficial do <strong>Tasy (<code style="color: var(--cyan-300);">TASY.IMI_EXAMES_PROC_INTERNO_V</code>)</strong>.
           </div>
+        </div>
+
+        <!-- Busca na Base do Tasy -->
+        <div style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+            <span style="display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-magnifying-glass" style="color: var(--amber-400);"></i> Pesquisar procedimento na base do Tasy:
+            </span>
+            <span id="vincularTasyCountLabel" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">Busque por nome, código Tasy ou sequência</span>
+          </div>
+
           <div style="display: flex; gap: 8px;">
-            <input type="text" id="vincularTasyBusca" class="form-input" placeholder="Digite nome ou código no Tasy..." style="font-size: 0.8rem; padding: 6px 10px;">
-            <button type="button" class="btn btn--secondary" id="btnVincularTasyBuscar" style="font-size: 0.75rem; padding: 6px 12px; white-space: nowrap;">
-              <i class="fa-solid fa-search"></i> Buscar
+            <div style="flex: 1; position: relative;">
+              <input type="text" id="vincularTasyBusca" class="form-input" placeholder="Ex: Coluna, Crânio, Joelho, Tórax, 41101153..." style="font-size: 0.85rem; padding: 8px 12px 8px 34px; width: 100%;" autocomplete="off">
+              <i class="fa-solid fa-search" style="position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.8rem;"></i>
+            </div>
+            <button type="button" class="btn btn--secondary" id="btnVincularTasyBuscar" style="font-size: 0.82rem; padding: 8px 16px; white-space: nowrap; border-color: rgba(56, 189, 248, 0.4); color: var(--cyan-400);">
+              <i class="fa-solid fa-search"></i> Buscar no Tasy
             </button>
           </div>
-          <div id="vincularTasyResultados" style="display: none; max-height: 120px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 6px; padding: 4px; display: flex; flex-direction: column; gap: 4px;"></div>
+
+          <!-- Lista de Resultados do Tasy -->
+          <div id="vincularTasyResultados" style="max-height: 220px; overflow-y: auto; background: rgba(0,0,0,0.25); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-size: 0.78rem; color: var(--text-muted); padding: 14px; text-align: center;">
+              <i class="fa-solid fa-spinner fa-spin" style="color: var(--cyan-400); margin-right: 6px;"></i> Carregando procedimentos sugeridos do Tasy...
+            </div>
+          </div>
         </div>
 
-        <div class="form-field">
-          <label class="form-label" for="vincularProcCodigo">
-            <i class="fa-solid fa-barcode" style="color: var(--cyan-400);"></i> Código TUSS / RIS / Tasy (* Obrigatório &amp; Único):
-          </label>
-          <input type="text" id="vincularProcCodigo" class="form-input" placeholder="Ex: 41101999 (TUSS ANS) ou RM_OMBRO (RIS)" required>
-          <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px;">Validação de conformidade: identificador único do procedimento.</span>
+        <!-- Lista de Procedimentos Selecionados para Associar -->
+        <div style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary);">
+              <i class="fa-solid fa-list-check" style="color: var(--emerald-400); margin-right: 6px;"></i> Exames selecionados para vincular:
+            </span>
+            <span id="badgeVincularSelecionados" class="badge-status status-liberado" style="font-size: 0.72rem;">0 selecionados</span>
+          </div>
+          <div id="vincularTasySelecionadosContainer" style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; min-height: 44px; padding: 6px; border: 1px dashed var(--border-subtle); border-radius: 8px;">
+            <div style="font-size: 0.78rem; color: var(--text-muted); text-align: center; padding: 8px;">
+              Clique em <strong>+ Selecionar</strong> nos procedimentos da busca acima para adicioná-los aqui.
+            </div>
+          </div>
         </div>
 
-        <div class="form-field">
-          <label class="form-label" for="vincularProcNome">
-            <i class="fa-solid fa-file-signature" style="color: var(--cyan-400);"></i> Nome do Exame / Procedimento Médico (* Obrigatório):
-          </label>
-          <input type="text" id="vincularProcNome" class="form-input" placeholder="Ex: RM de Ombro com Contraste" required>
-        </div>
-
-        <div class="form-field">
-          <label class="form-label" for="vincularProcRegiao">
-            <i class="fa-solid fa-map-pin" style="color: var(--cyan-400);"></i> Região Anatômica / Segmento (* Obrigatório):
-          </label>
-          <input type="text" id="vincularProcRegiao" class="form-input" placeholder="Ex: Ombro, Mão, Joelho, Crânio" required>
-        </div>
-
-        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
           <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalVincularProcAdmin').remove()">
             Cancelar
           </button>
-          <button type="submit" class="btn btn--primary" id="btnSalvarVincularProc">
-            <i class="fa-solid fa-check"></i> Associar Procedimento
+          <button type="submit" class="btn btn--primary" id="btnSalvarVincularProc" disabled style="opacity: 0.5;">
+            <i class="fa-solid fa-check"></i> Associar ao formulário
           </button>
         </div>
       </form>
@@ -2923,83 +3083,169 @@ function adminAbrirModalVincularProcedimento(protocoloId) {
 
   document.body.appendChild(container);
 
-  // Integração com busca no Tasy
   const inputBuscaTasy = document.getElementById('vincularTasyBusca');
   const btnBuscarTasy = document.getElementById('btnVincularTasyBuscar');
   const divResultadosTasy = document.getElementById('vincularTasyResultados');
+  const divSelecionados = document.getElementById('vincularTasySelecionadosContainer');
+  const badgeSelecionados = document.getElementById('badgeVincularSelecionados');
+  const btnSalvar = document.getElementById('btnSalvarVincularProc');
+  const countLabel = document.getElementById('vincularTasyCountLabel');
 
-  const buscarNoTasyModal = async () => {
-    const termo = inputBuscaTasy.value.trim();
-    if (!termo) return;
-    btnBuscarTasy.disabled = true;
-    divResultadosTasy.style.display = 'flex';
-    divResultadosTasy.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); padding: 6px; text-align: center;"><i class="fa-solid fa-spinner fa-spin"></i> Consultando Tasy...</div>';
-    try {
-      const res = await ApiClient.consultarProcedimentosTasy({ busca: termo, limite: 15 });
-      const itens = res.itens || [];
-      if (itens.length === 0) {
-        divResultadosTasy.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); padding: 6px; text-align: center;">Nenhum exame encontrado no Tasy.</div>';
-        return;
-      }
-      divResultadosTasy.innerHTML = itens.map(item => `
-        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 4px 8px; cursor: pointer;" onclick="window._selecionarTasyParaVincular('${encodeURIComponent(JSON.stringify(item))}')">
-          <div style="min-width: 0;">
-            <div style="font-size: 0.78rem; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.descricao}</div>
-            <div style="font-size: 0.68rem; color: var(--cyan-400); font-family: var(--font-mono);">${item.codigoProcedimento || item.sequencia}</div>
-          </div>
-          <span style="font-size: 0.72rem; color: var(--cyan-300); font-weight: 700;">+ Selecionar</span>
+  let selecionadosParaVincular = [];
+  let ultimosResultadosBusca = [];
+  let debounceTimer = null;
+
+  const verificarSeJaAssociadoNoProtocolo = (item) => {
+    const atuais = CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId] || [];
+    const codItem = String(item.codigoProcedimento || item.sequencia).trim().toUpperCase();
+    const seqItem = String(item.sequencia || '').trim().toUpperCase();
+    const descItem = (item.descricao || '').trim().toUpperCase();
+
+    return atuais.some(p => {
+      const pCod = String(p.codigoTuss || '').trim().toUpperCase();
+      const pSeq = String(p.sequenciaTasy || '').trim().toUpperCase();
+      const pNome = (p.nome || '').trim().toUpperCase();
+      return pCod === codItem || (seqItem && pSeq === seqItem) || (descItem && pNome === descItem);
+    });
+  };
+
+  const renderizarSelecionadosModal = () => {
+    const qtd = selecionadosParaVincular.length;
+    badgeSelecionados.textContent = `${qtd} ${qtd === 1 ? 'selecionado' : 'selecionados'}`;
+    btnSalvar.disabled = qtd === 0;
+    btnSalvar.style.opacity = qtd === 0 ? '0.5' : '1';
+    btnSalvar.innerHTML = qtd > 0
+      ? `<i class="fa-solid fa-check"></i> Associar ${qtd} exame${qtd > 1 ? 's' : ''} ao formulário`
+      : `<i class="fa-solid fa-check"></i> Associar ao formulário`;
+
+    if (qtd === 0) {
+      divSelecionados.innerHTML = `
+        <div style="font-size: 0.78rem; color: var(--text-muted); text-align: center; padding: 8px;">
+          Clique em <strong>+ Selecionar</strong> nos procedimentos da busca acima para adicioná-los aqui.
         </div>
-      `).join('');
+      `;
+      return;
+    }
+
+    divSelecionados.innerHTML = selecionadosParaVincular.map((item, idx) => {
+      const codPrincipal = item.codigoProcedimento || item.sequencia;
+      const regiaoAuto = extrairRegiao(item.descricao) || info.nome;
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 6px; padding: 6px 10px; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+            <code style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--emerald-400); background: rgba(16, 185, 129, 0.12); padding: 2px 6px; border-radius: 4px; white-space: nowrap;">TASY ${codPrincipal}</code>
+            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.descricao}">${item.descricao}</span>
+            <span style="font-size: 0.68rem; color: var(--text-muted); white-space: nowrap;">(${regiaoAuto})</span>
+          </div>
+          <button type="button" onclick="window._removerSelecaoVincularTasy(${idx})" style="background: none; border: none; color: var(--coral-400); cursor: pointer; padding: 2px 6px; font-size: 0.82rem;" title="Remover da seleção">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      `;
+    }).join('');
+  };
+
+  const renderizarResultadosBusca = () => {
+    if (ultimosResultadosBusca.length === 0) {
+      divResultadosTasy.innerHTML = '<div style="font-size: 0.78rem; color: var(--text-muted); padding: 14px; text-align: center;">Nenhum procedimento encontrado no Tasy para este filtro.</div>';
+      return;
+    }
+
+    divResultadosTasy.innerHTML = ultimosResultadosBusca.map(item => {
+      const jaNoProtocolo = verificarSeJaAssociadoNoProtocolo(item);
+      const jaNaSelecao = selecionadosParaVincular.some(s => s.sequencia === item.sequencia && s.codigoProcedimento === item.codigoProcedimento);
+      const codExibicao = item.codigoProcedimento ? `Cód: ${item.codigoProcedimento}` : `Seq: ${item.sequencia}`;
+      const seqSecundaria = item.codigoProcedimento && item.sequencia ? ` • Seq: ${item.sequencia}` : '';
+      const regiaoEstimada = extrairRegiao(item.descricao) || 'Geral';
+      const encoded = encodeURIComponent(JSON.stringify(item));
+
+      let btnHtml = '';
+      if (jaNoProtocolo) {
+        btnHtml = `<span style="font-size: 0.72rem; color: var(--emerald-400); background: rgba(16, 185, 129, 0.12); padding: 4px 8px; border-radius: 4px; font-weight: 600; white-space: nowrap;"><i class="fa-solid fa-check-double"></i> Já vinculado</span>`;
+      } else if (jaNaSelecao) {
+        btnHtml = `<span style="font-size: 0.72rem; color: var(--cyan-400); background: rgba(56, 189, 248, 0.15); padding: 4px 8px; border-radius: 4px; font-weight: 600; white-space: nowrap;"><i class="fa-solid fa-check"></i> Selecionado</span>`;
+      } else {
+        btnHtml = `<button type="button" class="btn btn--secondary" onclick="window._selecionarTasyParaVincular('${encoded}')" style="font-size: 0.74rem; padding: 4px 10px; border-color: rgba(56, 189, 248, 0.45); color: var(--cyan-400); white-space: nowrap;"><i class="fa-solid fa-plus"></i> Selecionar</button>`;
+      }
+
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 7px 10px; gap: 10px;">
+          <div style="min-width: 0; flex: 1;">
+            <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.descricao}">${item.descricao}</div>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 0.7rem;">
+              <span style="color: var(--cyan-400); font-family: var(--font-mono); font-weight: 600;">${codExibicao}${seqSecundaria}</span>
+              <span style="color: var(--text-muted);">• Região: ${regiaoEstimada}</span>
+              <span style="color: var(--purple-400); font-weight: 600;">• ${item.modalidadeEstimada || info.modalidade}</span>
+            </div>
+          </div>
+          ${btnHtml}
+        </div>
+      `;
+    }).join('');
+  };
+
+  const buscarNoTasyModal = async (termoExplicito) => {
+    const termo = typeof termoExplicito === 'string' ? termoExplicito : inputBuscaTasy.value.trim();
+    btnBuscarTasy.disabled = true;
+    divResultadosTasy.innerHTML = '<div style="font-size: 0.78rem; color: var(--text-muted); padding: 14px; text-align: center;"><i class="fa-solid fa-spinner fa-spin" style="color: var(--cyan-400); margin-right: 6px;"></i> Consultando base do Tasy (Oracle)...</div>';
+    try {
+      const res = await ApiClient.consultarProcedimentosTasy({ busca: termo, limite: 40 });
+      ultimosResultadosBusca = res.itens || [];
+      if (countLabel) {
+        countLabel.textContent = `${ultimosResultadosBusca.length} resultado(s) exibido(s) de ${res.total ?? ultimosResultadosBusca.length} no Tasy`;
+      }
+      renderizarResultadosBusca();
     } catch (err) {
-      divResultadosTasy.innerHTML = `<div style="font-size: 0.75rem; color: #f87171; padding: 6px;">Erro: ${err.message}</div>`;
+      divResultadosTasy.innerHTML = `<div style="font-size: 0.78rem; color: #f87171; padding: 10px; text-align: center;"><i class="fa-solid fa-triangle-exclamation"></i> Erro ao consultar Tasy: ${err.message}</div>`;
     } finally {
       btnBuscarTasy.disabled = false;
     }
   };
 
-  btnBuscarTasy.addEventListener('click', buscarNoTasyModal);
+  btnBuscarTasy.addEventListener('click', () => buscarNoTasyModal());
   inputBuscaTasy.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      if (debounceTimer) clearTimeout(debounceTimer);
       buscarNoTasyModal();
     }
+  });
+  inputBuscaTasy.addEventListener('input', () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      buscarNoTasyModal();
+    }, 350);
   });
 
   window._selecionarTasyParaVincular = (jsonStr) => {
     try {
       const item = JSON.parse(decodeURIComponent(jsonStr));
-      document.getElementById('vincularProcCodigo').value = item.codigoProcedimento || item.sequencia;
-      document.getElementById('vincularProcNome').value = item.descricao;
-      document.getElementById('vincularProcRegiao').value = extrairRegiao(item.descricao) || 'Geral';
-      divResultadosTasy.style.display = 'none';
-      showToast(`Procedimento "${item.descricao}" selecionado!`, 'info');
+      if (verificarSeJaAssociadoNoProtocolo(item)) {
+        showToast('Este exame já está vinculado a este formulário.', 'info');
+        return;
+      }
+      const jaSelecionado = selecionadosParaVincular.some(s => s.sequencia === item.sequencia && s.codigoProcedimento === item.codigoProcedimento);
+      if (!jaSelecionado) {
+        selecionadosParaVincular.push(item);
+        renderizarSelecionadosModal();
+        renderizarResultadosBusca();
+      }
     } catch (err) {
       console.error(err);
     }
   };
 
+  window._removerSelecaoVincularTasy = (idx) => {
+    selecionadosParaVincular.splice(idx, 1);
+    renderizarSelecionadosModal();
+    renderizarResultadosBusca();
+  };
+
   document.getElementById('formVincularProcModal').addEventListener('submit', (e) => {
     e.preventDefault();
-    const codigoInput = document.getElementById('vincularProcCodigo').value.trim();
-    const nomeInput = document.getElementById('vincularProcNome').value.trim();
-    const regiaoInput = document.getElementById('vincularProcRegiao').value.trim();
-
-    if (!nomeInput) {
-      showToast('O nome do exame/procedimento é obrigatório.', 'error');
-      document.getElementById('vincularProcNome')?.focus();
-      return;
-    }
-    if (!regiaoInput) {
-      showToast('A região anatômica é obrigatória.', 'error');
-      document.getElementById('vincularProcRegiao')?.focus();
-      return;
-    }
-
-    // Validação estrita de unicidade e obrigatoriedade TUSS/RIS
-    const validacao = validarCodigoTussERis(codigoInput);
-    if (!validacao.valido) {
-      showToast(validacao.mensagem, 'error');
-      document.getElementById('vincularProcCodigo')?.focus();
+    if (selecionadosParaVincular.length === 0) {
+      showToast('Selecione pelo menos um exame da base do Tasy para associar.', 'error');
+      inputBuscaTasy?.focus();
       return;
     }
 
@@ -3007,122 +3253,33 @@ function adminAbrirModalVincularProcedimento(protocoloId) {
       CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId] = [];
     }
 
-    CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId].push({
-      codigoTuss: validacao.codigoFormatado,
-      nome: nomeInput,
-      regiao: regiaoInput
+    let adicionados = 0;
+    selecionadosParaVincular.forEach(item => {
+      if (!verificarSeJaAssociadoNoProtocolo(item)) {
+        const codigoOficial = String(item.codigoProcedimento || item.sequencia);
+        const regiaoAuto = extrairRegiao(item.descricao) || info.nome;
+        CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId].push({
+          codigoTuss: codigoOficial,
+          codigoProcedimento: item.codigoProcedimento ? String(item.codigoProcedimento) : null,
+          sequenciaTasy: item.sequencia ? String(item.sequencia) : null,
+          nome: item.descricao,
+          regiao: regiaoAuto,
+          modalidade: item.modalidadeEstimada || info.modalidade,
+          origem: 'TASY'
+        });
+        adicionados++;
+      }
     });
 
     salvarProtocolosCustomizadosStorage();
     renderizarDicionarioProtocolos(protocoloId);
     container.remove();
-    showToast(`Exame "${nomeInput}" (TUSS/RIS ${validacao.codigoFormatado}) associado com sucesso!`, 'success');
+    showToast(`${adicionados} procedimento(s) oficial(is) do Tasy associado(s) ao formulário "${info.nome}"!`, 'success');
   });
-}
 
-function adminEditarProcedimento(protocoloId, codigoTuss) {
-  const procs = CATALOGO_PROCEDIMENTOS_FORMULARIO[protocoloId] || [];
-  const proc = procs.find(p => p.codigoTuss === codigoTuss);
-  if (!proc) return;
-
-  document.getElementById('modalEditarProcAdmin')?.remove();
-
-  const container = document.createElement('div');
-  container.id = 'modalEditarProcAdmin';
-  container.style.position = 'fixed';
-  container.style.inset = '0';
-  container.style.background = 'rgba(10, 14, 23, 0.85)';
-  container.style.backdropFilter = 'blur(10px)';
-  container.style.display = 'flex';
-  container.style.alignItems = 'center';
-  container.style.justifyContent = 'center';
-  container.style.zIndex = '9999';
-
-  container.innerHTML = `
-    <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 14px; max-width: 540px; width: 95%; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
-      <div style="padding: 16px 20px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">
-            <i class="fa-solid fa-pen-to-square"></i>
-          </div>
-          <div>
-            <h3 style="font-family: var(--font-title); font-size: 1.1rem; color: #fff;">Editar Procedimento do Catálogo</h3>
-            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Atualize o código TUSS/RIS, nome ou região anatômica.</p>
-          </div>
-        </div>
-        <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalEditarProcAdmin').remove()" style="padding: 5px 8px;">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <form id="formEditarProcModal" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
-        <div class="form-field">
-          <label class="form-label" for="editProcCodigo">
-            <i class="fa-solid fa-barcode" style="color: var(--cyan-400);"></i> Código TUSS / RIS (* Obrigatório & Único):
-          </label>
-          <input type="text" id="editProcCodigo" class="form-input" value="${proc.codigoTuss}" required>
-        </div>
-
-        <div class="form-field">
-          <label class="form-label" for="editProcNome">
-            <i class="fa-solid fa-file-signature" style="color: var(--cyan-400);"></i> Nome do Exame / Procedimento (* Obrigatório):
-          </label>
-          <input type="text" id="editProcNome" class="form-input" value="${proc.nome}" required>
-        </div>
-
-        <div class="form-field">
-          <label class="form-label" for="editProcRegiao">
-            <i class="fa-solid fa-map-pin" style="color: var(--cyan-400);"></i> Região Anatômica (* Obrigatório):
-          </label>
-          <input type="text" id="editProcRegiao" class="form-input" value="${proc.regiao}" required>
-        </div>
-
-        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
-          <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalEditarProcAdmin').remove()">
-            Cancelar
-          </button>
-          <button type="submit" class="btn btn--primary">
-            <i class="fa-solid fa-check"></i> Salvar Alterações
-          </button>
-        </div>
-      </form>
-    </div>
-  `;
-
-  document.body.appendChild(container);
-
-  document.getElementById('formEditarProcModal').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const novoCodigo = document.getElementById('editProcCodigo').value.trim();
-    const novoNome = document.getElementById('editProcNome').value.trim();
-    const novaRegiao = document.getElementById('editProcRegiao').value.trim();
-
-    if (!novoNome) {
-      showToast('O nome do exame/procedimento é obrigatório.', 'error');
-      return;
-    }
-    if (!novaRegiao) {
-      showToast('A região anatômica é obrigatória.', 'error');
-      return;
-    }
-
-    // Validação estrita de unicidade permitindo o mesmo código se não foi alterado
-    const validacao = validarCodigoTussERis(novoCodigo, proc.codigoTuss);
-    if (!validacao.valido) {
-      showToast(validacao.mensagem, 'error');
-      document.getElementById('editProcCodigo')?.focus();
-      return;
-    }
-
-    proc.codigoTuss = validacao.codigoFormatado;
-    proc.nome = novoNome;
-    proc.regiao = novaRegiao;
-
-    salvarProtocolosCustomizadosStorage();
-    renderizarDicionarioProtocolos(protocoloId);
-    container.remove();
-    showToast('Procedimento atualizado com sucesso!', 'success');
-  });
+  // Carrega inicialmente sugestões baseadas no protocolo ou listagem geral do Tasy
+  inputBuscaTasy.focus();
+  buscarNoTasyModal('');
 }
 
 function adminExcluirProcedimento(protocoloId, codigoTuss) {
@@ -3193,16 +3350,16 @@ function renderizarAdminExames() {
         <td><span style="font-family: var(--font-mono); font-weight: 700; color: var(--cyan-400);">${item.sala}</span></td>
         <td>${statusBadge}</td>
         <td style="text-align: right; white-space: nowrap;">
-          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; margin-right: 4px; border-color: rgba(56, 189, 248, 0.4); color: var(--cyan-400);" onclick="adminAbrirModalEditarExame(${item.id})">
+          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; margin-right: 4px; border-color: var(--cyan-400); color: var(--cyan-400);" onclick="adminAbrirModalEditarExame(${item.id})">
             <i class="fa-solid fa-pen-to-square"></i> Editar
           </button>
           <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; margin-right: 4px;" onclick="adminAlterarSala(${item.id}, '${item.sala}')">
             <i class="fa-solid fa-door-open"></i> Sala
           </button>
-          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; margin-right: 4px; border-color: rgba(245, 158, 11, 0.3); color: var(--amber-400);" onclick="adminResetStatusExame(${item.id})">
+          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; margin-right: 4px; border-color: var(--amber-400); color: var(--amber-400);" onclick="adminResetStatusExame(${item.id})">
             <i class="fa-solid fa-rotate-left"></i> Resetar
           </button>
-          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="adminExcluirExame(${item.id})">
+          <button type="button" class="btn btn--secondary" style="font-size: 0.78rem; padding: 4px 8px; border-color: var(--coral-400); color: var(--coral-400);" onclick="adminExcluirExame(${item.id})">
             <i class="fa-solid fa-trash-can"></i> Excluir
           </button>
         </td>
@@ -3236,13 +3393,13 @@ function adminAbrirModalEditarExame(exameId) {
 
   container.innerHTML = `
     <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 720px; width: 95%; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
-      <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
+      <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: var(--bg-card-subtle);">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">
             <i class="fa-solid fa-pen-to-square"></i>
           </div>
           <div>
-            <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">Editar Dados do Exame #${item.atendimento}</h3>
+            <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: var(--text-primary);">Editar dados do exame #${item.atendimento}</h3>
             <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Atualize dados cadastrais, clínicos ou altere o procedimento TUSS associado.</p>
           </div>
         </div>
@@ -3261,45 +3418,45 @@ function adminAbrirModalEditarExame(exameId) {
       <form id="formEditarExameModal" style="padding: 22px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
           <div class="form-field">
-            <label class="form-label" for="editExameNome">Nome do Paciente:</label>
+            <label class="form-label" for="editExameNome">Nome do paciente:</label>
             <input type="text" id="editExameNome" class="form-input" value="${item.pacienteNome || ''}" required>
           </div>
           <div class="form-field">
-            <label class="form-label" for="editExameCpf">CPF do Paciente:</label>
+            <label class="form-label" for="editExameCpf">CPF do paciente:</label>
             <input type="text" id="editExameCpf" class="form-input" value="${item.documentoCpf || ''}">
           </div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;">
           <div class="form-field">
-            <label class="form-label" for="editExamePeso">Peso (Kg):</label>
+            <label class="form-label" for="editExamePeso">Peso (kg):</label>
             <input type="number" step="0.1" id="editExamePeso" class="form-input" value="${item.pesoKg || 70}" required>
           </div>
           <div class="form-field">
-            <label class="form-label" for="editExameSala">Sala Operacional:</label>
+            <label class="form-label" for="editExameSala">Sala operacional:</label>
             <input type="text" id="editExameSala" class="form-input" value="${item.sala || 'RM-01'}" required>
           </div>
           <div class="form-field">
-            <label class="form-label" for="editExameHorario">Horário Agendado:</label>
+            <label class="form-label" for="editExameHorario">Horário agendado:</label>
             <input type="text" id="editExameHorario" class="form-input" value="${item.horario || '08:00'}" placeholder="HH:mm">
           </div>
         </div>
 
         <!-- Seção TUSS / TISS e Vinculação Automática -->
-        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <label class="form-label" style="margin: 0; display: flex; align-items: center; gap: 8px; color: var(--cyan-400); font-weight: 600; font-size: 0.9rem;">
-              <i class="fa-solid fa-barcode"></i> Código TUSS / TISS / RIS (* Selecione da lista ou digite):
+              <i class="fa-solid fa-barcode"></i> Código TUSS / TISS / RIS (* selecione da lista ou digite):
             </label>
             <span style="font-size: 0.72rem; color: var(--cyan-300); background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2); border-radius: 6px; padding: 2px 8px;">
-              <i class="fa-solid fa-bolt"></i> Auto-vinculação em Tempo Real
+              <i class="fa-solid fa-bolt"></i> Auto-vinculação em tempo real
             </span>
           </div>
 
           <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;">
             <div>
               <label class="form-label" for="editExameSelectTussRapido" style="font-size: 0.75rem; color: var(--text-muted);">
-                Selecionar do Catálogo Clínico (Lista Rápida):
+                Selecionar do catálogo clínico (lista rápida):
               </label>
               <select id="editExameSelectTussRapido" class="form-input" style="cursor: pointer; font-size: 0.85rem;" onchange="document.getElementById('editExameCodigoTuss').value = this.value; adminReagirAoCodigoTuss(this.value, 'editExame');">
                 <option value="">-- Escolha um procedimento do catálogo --</option>
@@ -3311,7 +3468,7 @@ function adminAbrirModalEditarExame(exameId) {
 
             <div>
               <label class="form-label" for="editExameCodigoTuss" style="font-size: 0.75rem; color: var(--text-muted);">
-                Ou Digite o Código TUSS / TISS:
+                Ou digite o código TUSS / TISS:
               </label>
               <input type="text" id="editExameCodigoTuss" list="listaProcedimentosTussDatalistEdit" class="form-input" value="${codigoInicial}" placeholder="Ex: 41101153 ou 41001095" style="font-family: var(--font-mono); font-weight: 600; color: var(--cyan-300);" oninput="adminReagirAoCodigoTuss(this.value, 'editExame')" onchange="adminReagirAoCodigoTuss(this.value, 'editExame')" required>
             </div>
@@ -3324,7 +3481,7 @@ function adminAbrirModalEditarExame(exameId) {
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
           <div class="form-field">
             <label class="form-label" for="editExameTipoFormulario">
-              <i class="fa-solid fa-file-waveform" style="color: var(--cyan-400);"></i> Formulário / Checklist de Triagem (Auto):
+              <i class="fa-solid fa-file-waveform" style="color: var(--cyan-400);"></i> Formulário / checklist de triagem (auto):
             </label>
             <select id="editExameTipoFormulario" class="form-input" style="cursor: pointer;">
               ${Object.values(PROTOCOLOS_CATALOGO_INFO).map(p => `
@@ -3333,7 +3490,7 @@ function adminAbrirModalEditarExame(exameId) {
             </select>
           </div>
           <div class="form-field">
-            <label class="form-label" for="editExameModalidade">Modalidade (Auto):</label>
+            <label class="form-label" for="editExameModalidade">Modalidade (auto):</label>
             <select id="editExameModalidade" class="form-input" style="cursor: pointer;">
               <option value="RM" ${item.modalidade === 'RM' ? 'selected' : ''}>Ressonância (RM)</option>
               <option value="TC" ${item.modalidade === 'TC' ? 'selected' : ''}>Tomografia (TC)</option>
@@ -3342,12 +3499,12 @@ function adminAbrirModalEditarExame(exameId) {
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="editExameProcedimento">Descrição do Procedimento:</label>
+          <label class="form-label" for="editExameProcedimento">Descrição do procedimento:</label>
           <input type="text" id="editExameProcedimento" class="form-input" value="${item.procedimento || ''}" required>
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="editExameSegmento">Segmento / Lateralidade:</label>
+          <label class="form-label" for="editExameSegmento">Segmento / lateralidade:</label>
           <input type="text" id="editExameSegmento" class="form-input" value="${item.segmentoLado || ''}" placeholder="Ex: Lombar, Direito, Tórax">
         </div>
 
@@ -3356,7 +3513,7 @@ function adminAbrirModalEditarExame(exameId) {
             Cancelar
           </button>
           <button type="submit" class="btn btn--primary" id="btnSalvarEdicaoExame">
-            <i class="fa-solid fa-check"></i> Salvar Alterações
+            <i class="fa-solid fa-check"></i> Salvar alterações
           </button>
         </div>
       </form>
@@ -3426,7 +3583,7 @@ function adminAbrirModalEditarExame(exameId) {
     } catch (err) {
       showToast(`Erro ao editar exame: ${err.message}`, 'error');
       btn.disabled = false;
-      btn.innerHTML = '<i class="fa-solid fa-check"></i> Salvar Alterações';
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> Salvar alterações';
     }
   });
 }
@@ -3471,13 +3628,13 @@ function adminAbrirModalNovoExame() {
 
   container.innerHTML = `
     <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 720px; width: 95%; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
-      <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
+      <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: var(--bg-card-subtle);">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">
             <i class="fa-solid fa-calendar-plus"></i>
           </div>
           <div>
-            <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">Novo Agendamento de Exame (Teste Clínico)</h3>
+            <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: var(--text-primary);">Novo agendamento de exame (teste clínico)</h3>
             <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Cadastre um agendamento na grade com preenchimento inteligente via código TUSS.</p>
           </div>
         </div>
@@ -3497,11 +3654,11 @@ function adminAbrirModalNovoExame() {
         <!-- Seção 1: Dados do Paciente -->
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
           <div class="form-field">
-            <label class="form-label" for="novoExameNome">Nome Completo do Paciente:</label>
+            <label class="form-label" for="novoExameNome">Nome completo do paciente:</label>
             <input type="text" id="novoExameNome" class="form-input" placeholder="Ex: Roberto Alencar da Silva" required>
           </div>
           <div class="form-field">
-            <label class="form-label" for="novoExameCpf">CPF do Paciente:</label>
+            <label class="form-label" for="novoExameCpf">CPF do paciente:</label>
             <input type="text" id="novoExameCpf" class="form-input" placeholder="000.000.000-00">
           </div>
         </div>
@@ -3519,26 +3676,26 @@ function adminAbrirModalNovoExame() {
             </select>
           </div>
           <div class="form-field">
-            <label class="form-label" for="novoExamePeso">Peso (Kg):</label>
+            <label class="form-label" for="novoExamePeso">Peso (kg):</label>
             <input type="number" step="0.1" id="novoExamePeso" class="form-input" value="75.0" required>
           </div>
         </div>
 
         <!-- Seção 2: Inteligência TUSS / TISS e Vinculação Automática de Formulário -->
-        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <label class="form-label" style="margin: 0; display: flex; align-items: center; gap: 8px; color: var(--cyan-400); font-weight: 600; font-size: 0.9rem;">
-              <i class="fa-solid fa-barcode"></i> Procedimento TUSS / TISS (* Selecione ou digite):
+              <i class="fa-solid fa-barcode"></i> Procedimento TUSS / TISS (* selecione ou digite):
             </label>
             <span style="font-size: 0.72rem; color: var(--cyan-300); background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2); border-radius: 6px; padding: 2px 8px;">
-              <i class="fa-solid fa-bolt"></i> Auto-vinculação em Tempo Real
+              <i class="fa-solid fa-bolt"></i> Auto-vinculação em tempo real
             </span>
           </div>
 
           <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;">
             <div>
               <label class="form-label" for="novoExameSelectTussRapido" style="font-size: 0.75rem; color: var(--text-muted);">
-                Selecionar do Catálogo Clínico (Lista Rápida):
+                Selecionar do catálogo clínico (lista rápida):
               </label>
               <select id="novoExameSelectTussRapido" class="form-input" style="cursor: pointer; font-size: 0.85rem;" onchange="document.getElementById('novoExameCodigoTuss').value = this.value; adminReagirAoCodigoTuss(this.value, 'novoExame');">
                 <option value="">-- Escolha um procedimento do catálogo --</option>
@@ -3550,7 +3707,7 @@ function adminAbrirModalNovoExame() {
 
             <div>
               <label class="form-label" for="novoExameCodigoTuss" style="font-size: 0.75rem; color: var(--text-muted);">
-                Ou Digite o Código TUSS / TISS:
+                Ou digite o código TUSS / TISS:
               </label>
               <input type="text" id="novoExameCodigoTuss" list="listaProcedimentosTussDatalist" class="form-input" placeholder="Ex: 41101153 ou 41001095" value="41101170" style="font-family: var(--font-mono); font-weight: 600; color: var(--cyan-300);" oninput="adminReagirAoCodigoTuss(this.value, 'novoExame')" onchange="adminReagirAoCodigoTuss(this.value, 'novoExame')" required>
             </div>
@@ -3564,7 +3721,7 @@ function adminAbrirModalNovoExame() {
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
           <div class="form-field">
             <label class="form-label" for="novoExameTipoFormulario">
-              <i class="fa-solid fa-file-waveform" style="color: var(--cyan-400);"></i> Formulário / Checklist de Triagem (Auto):
+              <i class="fa-solid fa-file-waveform" style="color: var(--cyan-400);"></i> Formulário / checklist de triagem (auto):
             </label>
             <select id="novoExameTipoFormulario" class="form-input" style="cursor: pointer;">
               ${Object.values(PROTOCOLOS_CATALOGO_INFO).map(p => `
@@ -3573,7 +3730,7 @@ function adminAbrirModalNovoExame() {
             </select>
           </div>
           <div class="form-field">
-            <label class="form-label" for="novoExameModalidade">Modalidade (Auto):</label>
+            <label class="form-label" for="novoExameModalidade">Modalidade (auto):</label>
             <select id="novoExameModalidade" class="form-input" style="cursor: pointer;" onchange="adminAtualizarFormulariosModalNovo(this.value)">
               <option value="RM">Ressonância (RM)</option>
               <option value="TC">Tomografia (TC)</option>
@@ -3582,17 +3739,17 @@ function adminAbrirModalNovoExame() {
         </div>
 
         <div class="form-field">
-          <label class="form-label" for="novoExameProcedimento">Descrição do Procedimento / Exame:</label>
+          <label class="form-label" for="novoExameProcedimento">Descrição do procedimento / exame:</label>
           <input type="text" id="novoExameProcedimento" class="form-input" value="Ressonância Magnética de Coluna Lombar" required>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;">
           <div class="form-field">
-            <label class="form-label" for="novoExameSegmento">Segmento / Região:</label>
+            <label class="form-label" for="novoExameSegmento">Segmento / região:</label>
             <input type="text" id="novoExameSegmento" class="form-input" value="Lombar" placeholder="Ex: Tórax, Lombar, Braço">
           </div>
           <div class="form-field">
-            <label class="form-label" for="novoExameSala">Sala Operacional:</label>
+            <label class="form-label" for="novoExameSala">Sala operacional:</label>
             <input type="text" id="novoExameSala" class="form-input" value="RM-01" required>
           </div>
           <div class="form-field">
@@ -3606,7 +3763,7 @@ function adminAbrirModalNovoExame() {
             Cancelar
           </button>
           <button type="submit" class="btn btn--primary" id="btnSalvarNovoExame">
-            <i class="fa-solid fa-check"></i> Agendar Exame
+            <i class="fa-solid fa-check"></i> Agendar exame
           </button>
         </div>
       </form>
@@ -3740,7 +3897,7 @@ async function adminResetStatusExame(id) {
   if (!confirm('Deseja retornar este exame para AGUARDANDO_TRIAGEM para novo teste?')) return;
   try {
     const res = await ApiClient.resetStatusExameAdmin(id);
-    showToast(res.message || 'Exame retornado para Aguardando Triagem!', 'success');
+    showToast(res.message || 'Exame retornado para aguardando triagem!', 'success');
     await carregarWorklist();
     await carregarAdminView();
   } catch (err) {
@@ -3777,35 +3934,35 @@ function abrirModalNovoUsuario() {
   container.style.zIndex = '9999';
 
   container.innerHTML = `
-    <div style="background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 12px; max-width: 520px; width: 90%; padding: 26px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); color: #f8fafc;">
+    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; max-width: 520px; width: 90%; padding: 26px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); color: var(--text-primary);">
       <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
         <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
           <i class="fa-solid fa-user-plus"></i>
         </div>
         <div>
-          <h3 style="font-family: var(--font-title); font-size: 1.2rem; font-weight: 700; color: #fff;">Cadastrar Novo Operador</h3>
+          <h3 style="font-family: var(--font-title); font-size: 1.2rem; font-weight: 700; color: var(--text-primary);">Cadastrar novo operador</h3>
           <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">Crie acesso para Biomédico, Técnico de RM ou Estagiário de Biomedicina.</p>
         </div>
       </div>
 
       <form id="formNovoOperadorAdmin">
         <div class="form-field" style="margin-bottom: 14px;">
-          <label class="form-label" for="novoOpNome">Nome Completo do Operador</label>
+          <label class="form-label" for="novoOpNome">Nome completo do operador</label>
           <input type="text" id="novoOpNome" class="form-input" placeholder="Ex: Lucas Gabriel Rocha" required>
         </div>
 
         <div class="form-field" style="margin-bottom: 14px;">
-          <label class="form-label" for="novoOpLogin">Login de Acesso</label>
+          <label class="form-label" for="novoOpLogin">Login de acesso</label>
           <input type="text" id="novoOpLogin" class="form-input" placeholder="Ex: lucas.rocha" required>
         </div>
 
         <div class="form-field" style="margin-bottom: 14px;">
-          <label class="form-label" for="novoOpSenha">Senha Inicial</label>
+          <label class="form-label" for="novoOpSenha">Senha inicial</label>
           <input type="password" id="novoOpSenha" class="form-input" value="123456" required>
         </div>
 
         <div class="form-field" style="margin-bottom: 22px;">
-          <label class="form-label" for="novoOpPerfil">Perfil de Acesso</label>
+          <label class="form-label" for="novoOpPerfil">Perfil de acesso</label>
           <select id="novoOpPerfil" class="form-input" style="cursor: pointer;">
             <option value="1">Estagiário de Biomedicina (ESTAGIARIO)</option>
             <option value="2">Técnico em Radiologia (TECNICO)</option>
@@ -3819,7 +3976,7 @@ function abrirModalNovoUsuario() {
             Cancelar
           </button>
           <button type="submit" class="btn btn--primary" id="btnSalvarNovoOp">
-            <i class="fa-solid fa-check"></i> Cadastrar Operador
+            <i class="fa-solid fa-check"></i> Cadastrar operador
           </button>
         </div>
       </form>
@@ -4012,13 +4169,13 @@ function adminAbrirModalNovoProtocolo() {
   container.innerHTML = `
     <div style="background: var(--bg-card); border: 1px solid var(--cyan-500); border-radius: 16px; max-width: 900px; width: 95%; max-height: 94vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px var(--cyan-glow); overflow: hidden;">
       <!-- Cabeçalho -->
-      <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.5);">
+      <div style="padding: 18px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center; background: var(--bg-card-subtle);">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(56, 189, 248, 0.2); color: var(--cyan-400); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
             <i class="fa-solid fa-folder-plus"></i>
           </div>
           <div>
-            <h3 style="font-family: var(--font-title); font-size: 1.25rem; font-weight: 800; color: #fff;">Novo Protocolo &amp; Formulário de Triagem</h3>
+            <h3 style="font-family: var(--font-title); font-size: 1.25rem; font-weight: 800; color: var(--text-primary);">Novo protocolo &amp; formulário de triagem</h3>
             <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">Vincule procedimentos oficiais do Tasy e defina a ordem de apresentação do checklist clínico.</p>
           </div>
         </div>
@@ -4031,25 +4188,25 @@ function adminAbrirModalNovoProtocolo() {
       <form id="formNovoProtocoloModal" style="padding: 22px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px;">
         
         <!-- 1. Identificação Geral -->
-        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
-          <div style="font-size: 0.88rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
-            <i class="fa-solid fa-tag" style="color: var(--cyan-400);"></i> 1. Identificação do Protocolo
+        <div style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-tag" style="color: var(--cyan-400);"></i> 1. Identificação do protocolo
           </div>
 
           <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px;">
             <div class="form-field">
-              <label class="form-label" for="novoProtoNome">Nome do Protocolo Anatômico / Formulário:</label>
+              <label class="form-label" for="novoProtoNome">Nome do protocolo anatômico / formulário:</label>
               <input type="text" id="novoProtoNome" class="form-input" placeholder="Ex: RM Crânio / Encéfalo ou TC Abdômen Total" required>
             </div>
             <div class="form-field">
-              <label class="form-label" for="novoProtoCodigo">Código Identificador (ID do Formulário):</label>
+              <label class="form-label" for="novoProtoCodigo">Código identificador (ID do formulário):</label>
               <input type="text" id="novoProtoCodigo" class="form-input" placeholder="Ex: RM_CRANIO" style="font-family: var(--font-mono); text-transform: uppercase;" required>
             </div>
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
             <div class="form-field">
-              <label class="form-label" for="novoProtoModalidade">Modalidade Base:</label>
+              <label class="form-label" for="novoProtoModalidade">Modalidade base:</label>
               <select id="novoProtoModalidade" class="form-input" style="cursor: pointer;">
                 <option value="RM">Ressonância Magnética (RM)</option>
                 <option value="TC">Tomografia Computadorizada (TC)</option>
@@ -4058,7 +4215,7 @@ function adminAbrirModalNovoProtocolo() {
               </select>
             </div>
             <div class="form-field">
-              <label class="form-label" for="novoProtoIcone">Ícone Visual:</label>
+              <label class="form-label" for="novoProtoIcone">Ícone visual:</label>
               <select id="novoProtoIcone" class="form-input" style="cursor: pointer;">
                 <option value="fa-brain">🧠 Cérebro / Crânio (Neurologia)</option>
                 <option value="fa-bone">🦴 Ossos / Articulações / Coluna</option>
@@ -4075,18 +4232,18 @@ function adminAbrirModalNovoProtocolo() {
         </div>
 
         <!-- 2. Procedimentos Integrados do Tasy (Substituição de TUSS Manual) -->
-        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <div>
-              <div style="font-size: 0.88rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-database" style="color: var(--amber-400);"></i> 2. Procedimentos Oficiais do Tasy (Banco Oracle 19c)
+              <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-database" style="color: var(--amber-400);"></i> 2. Procedimentos oficiais do Tasy (banco Oracle 19c)
               </div>
               <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
                 Selecione na base do Tasy (<code style="color: var(--cyan-300);">TASY.IMI_EXAMES_PROC_INTERNO_V</code>) quais procedimentos correspondem a este protocolo.
               </p>
             </div>
             <span class="badge" id="badgeTotalTasyVinculados" style="background: rgba(14, 165, 233, 0.15); color: var(--cyan-400); border: 1px solid var(--cyan-500); font-size: 0.75rem; font-weight: 700;">
-              0 Procedimento(s) Vinculado(s)
+              0 procedimento(s) vinculado(s)
             </span>
           </div>
 
@@ -4102,16 +4259,16 @@ function adminAbrirModalNovoProtocolo() {
           </div>
 
           <!-- Resultados da busca no Tasy -->
-          <div id="novoProtoTasyResultadosContainer" style="display: none; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-subtle); border-radius: 8px; max-height: 180px; overflow-y: auto; padding: 6px;">
+          <div id="novoProtoTasyResultadosContainer" style="display: none; background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 8px; max-height: 180px; overflow-y: auto; padding: 6px;">
             <div id="novoProtoTasyResultadosList" style="display: flex; flex-direction: column; gap: 6px;"></div>
           </div>
 
           <!-- Lista de Procedimentos Vinculados Selecionados -->
           <div style="margin-top: 4px;">
-            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 6px;">
-              Procedimentos Vinculados a este Protocolo:
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px;">
+              Procedimentos vinculados a este protocolo:
             </div>
-            <div id="novoProtoTasySelecionadosList" style="display: flex; flex-direction: column; gap: 6px; min-height: 48px; background: rgba(0, 0, 0, 0.2); border: 1px dashed var(--border-subtle); border-radius: 8px; padding: 8px;">
+            <div id="novoProtoTasySelecionadosList" style="display: flex; flex-direction: column; gap: 6px; min-height: 48px; background: var(--bg-card-subtle); border: 1px dashed var(--border-subtle); border-radius: 8px; padding: 8px;">
               <div id="msgNenhumTasyVinculado" style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px;">
                 <i class="fa-solid fa-hand-pointer" style="margin-right: 6px; color: var(--amber-400);"></i>
                 Nenhum procedimento do Tasy vinculado ainda. Utilize o campo de busca acima e clique em <strong>+ Vincular</strong>.
@@ -4121,33 +4278,33 @@ function adminAbrirModalNovoProtocolo() {
         </div>
 
         <!-- 3. Checklist Clínico & Ordem de Apresentação -->
-        <div style="background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
-              <div style="font-size: 0.88rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-list-ol" style="color: var(--cyan-400);"></i> 3. Checklist Clínico &amp; Ordem de Apresentação
+              <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-list-ol" style="color: var(--cyan-400);"></i> 3. Checklist clínico &amp; ordem de apresentação
               </div>
               <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
                 Selecione as perguntas genéricas essenciais e organize a sequência exata de exibição usando os botões <strong>▲ / ▼</strong>.
               </p>
             </div>
             <button type="button" class="btn btn--secondary" id="btnAdicionarPerguntaCustom" style="font-size: 0.8rem; padding: 6px 14px; border-color: rgba(56, 189, 248, 0.4); color: var(--cyan-400);">
-              <i class="fa-solid fa-plus" style="margin-right: 4px;"></i> + Pergunta Especializada
+              <i class="fa-solid fa-plus" style="margin-right: 4px;"></i> + Pergunta especializada
             </button>
           </div>
 
           <!-- Banco de Perguntas Genéricas (Agilizador Rápido) -->
-          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px;">
+          <div style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
-              <span style="font-size: 0.78rem; font-weight: 700; color: #fff; text-transform: uppercase;">
-                <i class="fa-solid fa-bolt" style="color: var(--amber-400); margin-right: 6px;"></i> Perguntas Genéricas de Segurança (Adição Rápida):
+              <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-primary);">
+                <i class="fa-solid fa-bolt" style="color: var(--amber-400); margin-right: 6px;"></i> Perguntas genéricas de segurança (adição rápida):
               </span>
               <div style="display: flex; gap: 8px;">
                 <button type="button" class="btn btn--secondary" id="btnMarcarTodasGenericas" style="font-size: 0.72rem; padding: 3px 8px;">
-                  + Incluir Todas
+                  + Incluir todas
                 </button>
                 <button type="button" class="btn btn--secondary" id="btnDesmarcarTodasGenericas" style="font-size: 0.72rem; padding: 3px 8px;">
-                  - Limpar Todas
+                  - Limpar todas
                 </button>
               </div>
             </div>
@@ -4159,8 +4316,8 @@ function adminAbrirModalNovoProtocolo() {
           <!-- Lista Ativa e Reordenável de Perguntas do Checklist -->
           <div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">
-                Ordem de Exibição no Questionário (<span id="contadorPerguntasTotal">0</span> perguntas):
+              <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);">
+                Ordem de exibição no questionário (<span id="contadorPerguntasTotal">0</span> perguntas):
               </span>
               <span style="font-size: 0.75rem; color: var(--text-muted);">
                 <i class="fa-solid fa-arrow-down-short-wide"></i> O questionário será exibido nesta sequência
@@ -4172,18 +4329,18 @@ function adminAbrirModalNovoProtocolo() {
           </div>
 
           <!-- Resumo de Risco do Semáforo -->
-          <div id="resumoSemaforoNovoProto" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 14px; background: rgba(0, 0, 0, 0.25); border-radius: 8px; font-size: 0.8rem;">
+          <div id="resumoSemaforoNovoProto" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 14px; background: var(--bg-card-subtle); border-radius: 8px; font-size: 0.8rem;">
             <!-- Contadores de Impeditivas, Alertas, Informativas -->
           </div>
         </div>
 
         <!-- Rodapé e Ações -->
-        <div style="display: flex; justify-content: flex-end; gap: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; justify-content: flex-end; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border-subtle);">
           <button type="button" class="btn btn--secondary" onclick="document.getElementById('modalNovoProtocoloAdmin').remove()">
             Cancelar
           </button>
           <button type="submit" class="btn btn--primary" id="btnSalvarNovoProtocolo" style="padding: 9px 24px; font-size: 0.9rem;">
-            <i class="fa-solid fa-check"></i> Salvar &amp; Ativar Protocolo
+            <i class="fa-solid fa-check"></i> Salvar &amp; ativar protocolo
           </button>
         </div>
       </form>
@@ -4246,15 +4403,15 @@ function adminAbrirModalNovoProtocolo() {
     selecionadosList.innerHTML = procedimentosSelecionadosTasy.map((proc, idx) => {
       const codExibicao = proc.codigoProcedimento ? `Cód: ${proc.codigoProcedimento}` : `Seq: ${proc.sequencia}`;
       return `
-        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 8px 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 8px 12px;">
           <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
             <span class="badge" style="background: rgba(14, 165, 233, 0.15); color: var(--cyan-400); border: 1px solid var(--cyan-500); font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; font-weight: 700;">
               ${codExibicao}
             </span>
-            <span style="font-size: 0.84rem; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <span style="font-size: 0.84rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
               ${proc.descricao}
             </span>
-            <span class="badge" style="background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); font-size: 0.68rem;">
+            <span class="badge" style="background: var(--bg-card-subtle); color: var(--text-secondary); font-size: 0.68rem;">
               ${proc.modalidadeEstimada || 'PROCEDIMENTO'}
             </span>
           </div>
@@ -4319,13 +4476,13 @@ function adminAbrirModalNovoProtocolo() {
         const encoded = encodeURIComponent(JSON.stringify(item));
 
         return `
-          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px;">
             <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-              <code style="font-family: 'JetBrains Mono', monospace; font-size: 0.74rem; color: var(--cyan-300);">${item.codigoProcedimento ?? item.sequencia}</code>
-              <span style="font-size: 0.82rem; font-weight: 500; color: #f8fafc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <code style="font-family: 'JetBrains Mono', monospace; font-size: 0.74rem; color: var(--cyan-400);">${item.codigoProcedimento ?? item.sequencia}</code>
+              <span style="font-size: 0.82rem; font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 ${item.descricao}
               </span>
-              <span class="badge" style="font-size: 0.65rem; background: rgba(255, 255, 255, 0.06); color: var(--text-secondary);">
+              <span class="badge" style="font-size: 0.65rem; background: var(--bg-card-subtle); color: var(--text-secondary);">
                 ${item.modalidadeEstimada || 'TASY'}
               </span>
             </div>
@@ -4371,11 +4528,11 @@ function adminAbrirModalNovoProtocolo() {
       const labelBadge = p.tipo === 'IMPEDITIVA' ? '🔴 Impeditiva' : (p.tipo === 'ALERTA' ? '🟡 Alerta' : '🟢 Informativa');
 
       return `
-        <label style="display: flex; align-items: flex-start; gap: 8px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px; cursor: pointer; user-select: none;">
+        <label style="display: flex; align-items: flex-start; gap: 8px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px; cursor: pointer; user-select: none;">
           <input type="checkbox" class="chk-generica-toggle" data-idx="${idx}" ${ativa ? 'checked' : ''} style="margin-top: 3px; accent-color: var(--cyan-400); cursor: pointer;">
           <div style="flex: 1; min-width: 0;">
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;">
-              <span style="font-size: 0.78rem; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 ${p.enunciado}
               </span>
               <span style="font-size: 0.65rem; color: ${corBadge}; font-weight: 700; white-space: nowrap;">
@@ -4429,15 +4586,15 @@ function adminAbrirModalNovoProtocolo() {
     });
 
     resumoSemaforoElem.innerHTML = `
-      <span style="font-weight: 700; color: var(--text-secondary);">Composição do Semáforo:</span>
-      <span style="color: var(--coral-400); font-weight: 700;">🔴 ${impeditivas} Contraindicações Absolutas</span>
-      <span style="color: var(--amber-400); font-weight: 700;">🟡 ${alertas} Alertas Operacionais</span>
-      <span style="color: var(--emerald-400); font-weight: 700;">🟢 ${informativas} Critérios Informativos</span>
+      <span style="font-weight: 700; color: var(--text-secondary);">Composição do semáforo:</span>
+      <span style="color: var(--coral-400); font-weight: 700;">🔴 ${impeditivas} contraindicações absolutas</span>
+      <span style="color: var(--amber-400); font-weight: 700;">🟡 ${alertas} alertas operacionais</span>
+      <span style="color: var(--emerald-400); font-weight: 700;">🟢 ${informativas} critérios informativos</span>
     `;
 
     if (perguntasAtivas.length === 0) {
       containerOrdenadas.innerHTML = `
-        <div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 18px; background: rgba(0,0,0,0.2); border: 1px dashed var(--border-subtle); border-radius: 8px;">
+        <div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 18px; background: var(--bg-card-subtle); border: 1px dashed var(--border-subtle); border-radius: 8px;">
           <i class="fa-solid fa-list-check" style="font-size: 1.2rem; margin-bottom: 6px; display: block; opacity: 0.5;"></i>
           Nenhuma pergunta selecionada para o checklist. Marque as perguntas genéricas acima ou adicione perguntas especializadas.
         </div>
@@ -4451,20 +4608,20 @@ function adminAbrirModalNovoProtocolo() {
       const pos = idx + 1;
 
       return `
-        <div style="display: flex; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 8px 12px;">
+        <div style="display: flex; align-items: center; gap: 10px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 8px 12px;">
           <!-- Controles de Ordem (Subir / Descer e Input de Posição) -->
           <div style="display: flex; align-items: center; gap: 4px;">
             <div style="display: flex; flex-direction: column; gap: 2px;">
-              <button type="button" onclick="window._moverPerguntaNovoProto(${idx}, -1)" ${isFirst ? 'disabled' : ''} style="background: none; border: none; color: ${isFirst ? 'rgba(255,255,255,0.15)' : 'var(--cyan-400)'}; cursor: ${isFirst ? 'default' : 'pointer'}; padding: 0 4px; font-size: 0.72rem;" title="Subir pergunta (antecipar na triagem)">
+              <button type="button" onclick="window._moverPerguntaNovoProto(${idx}, -1)" ${isFirst ? 'disabled' : ''} style="background: none; border: none; color: ${isFirst ? 'var(--text-muted)' : 'var(--cyan-400)'}; cursor: ${isFirst ? 'default' : 'pointer'}; padding: 0 4px; font-size: 0.72rem; opacity: ${isFirst ? '0.4' : '1'};" title="Subir pergunta (antecipar na triagem)">
                 <i class="fa-solid fa-chevron-up"></i>
               </button>
-              <button type="button" onclick="window._moverPerguntaNovoProto(${idx}, 1)" ${isLast ? 'disabled' : ''} style="background: none; border: none; color: ${isLast ? 'rgba(255,255,255,0.15)' : 'var(--cyan-400)'}; cursor: ${isLast ? 'default' : 'pointer'}; padding: 0 4px; font-size: 0.72rem;" title="Descer pergunta (postergar na triagem)">
+              <button type="button" onclick="window._moverPerguntaNovoProto(${idx}, 1)" ${isLast ? 'disabled' : ''} style="background: none; border: none; color: ${isLast ? 'var(--text-muted)' : 'var(--cyan-400)'}; cursor: ${isLast ? 'default' : 'pointer'}; padding: 0 4px; font-size: 0.72rem; opacity: ${isLast ? '0.4' : '1'};" title="Descer pergunta (postergar na triagem)">
                 <i class="fa-solid fa-chevron-down"></i>
               </button>
             </div>
             <div style="display: flex; align-items: center; gap: 2px;">
               <span style="font-size: 0.75rem; font-weight: 800; color: var(--cyan-400); font-family: 'JetBrains Mono', monospace;">#</span>
-              <input type="number" value="${pos}" min="1" max="${perguntasAtivas.length}" onchange="window._mudarPosicaoPerguntaNovoProto(${idx}, this.value)" style="width: 40px; background: rgba(0,0,0,0.4); border: 1px solid var(--cyan-500); border-radius: 4px; color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; text-align: center; padding: 2px;" title="Alterar posição na ordem de apresentação">
+              <input type="number" value="${pos}" min="1" max="${perguntasAtivas.length}" onchange="window._mudarPosicaoPerguntaNovoProto(${idx}, this.value)" style="width: 40px; background: var(--bg-card-subtle); border: 1px solid var(--cyan-500); border-radius: 4px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; text-align: center; padding: 2px;" title="Alterar posição na ordem de apresentação">
             </div>
           </div>
 
@@ -4803,7 +4960,7 @@ async function carregarInfoWorkstation() {
     const ws = await ApiClient.obterInfoWorkstation();
     UIState.workstation = ws;
     if (elemDesc) {
-      elemDesc.innerHTML = `Posto: <strong style="color:var(--cyan-300);">${ws.salaPadrao}</strong> | Host: <strong>${ws.hostname}</strong> (${ws.ip})`;
+      elemDesc.innerHTML = `<span style="color: var(--text-secondary); font-weight: 600;">Posto:</span> <strong style="color: var(--purple-400); font-weight: 800;">${ws.salaPadrao}</strong> <span style="color: var(--text-muted); margin: 0 4px;">|</span> <span style="color: var(--text-secondary); font-weight: 600;">Host:</span> <strong style="color: var(--text-primary); font-weight: 800;">${ws.hostname}</strong> <span style="color: var(--text-muted); font-weight: 500;">(${ws.ip})</span>`;
     }
   } catch (err) {
     console.warn('Não foi possível obter identificação remota da workstation, usando padrão:', err);
@@ -4814,7 +4971,7 @@ async function carregarInfoWorkstation() {
       descricao: 'RM-01 (192.1.2.120 - IMI-6691)'
     };
     if (elemDesc) {
-      elemDesc.innerHTML = `Posto: <strong style="color:var(--cyan-300);">RM-01</strong> | Host: <strong>IMI-6691</strong> (192.1.2.120)`;
+      elemDesc.innerHTML = `<span style="color: var(--text-secondary); font-weight: 600;">Posto:</span> <strong style="color: var(--purple-400); font-weight: 800;">RM-01</strong> <span style="color: var(--text-muted); margin: 0 4px;">|</span> <span style="color: var(--text-secondary); font-weight: 600;">Host:</span> <strong style="color: var(--text-primary); font-weight: 800;">IMI-6691</strong> <span style="color: var(--text-muted); font-weight: 500;">(192.1.2.120)</span>`;
     }
   }
 }
@@ -4874,44 +5031,90 @@ async function carregarExamesDiaTasy(data, busca) {
         ? item.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
         : 'Não informado';
 
+      // Cruza com UIState.exames para sincronia em tempo real
+      const itemSeqTasy = item.nrSeqProcInterno || item.sequenciaProcedimentoInterno;
+      const exameLocal = UIState.exames.find(e => 
+        e.atendimento === item.atendimento && 
+        (itemSeqTasy ? String(e.nrSeqProcInterno || e.sequenciaProcedimentoInterno) === String(itemSeqTasy) : true)
+      );
+
+      const statusEfetivo = item.statusTriagem || (exameLocal ? exameLocal.status : null);
+      const isLiberado = statusEfetivo === 'LIBERADO';
+      const isBloqueado = statusEfetivo === 'BLOQUEADO_SEGURANCA';
+      const isEmTriagem = statusEfetivo === 'EM_TRIAGEM';
+      const exameIdEfetivo = item.exameLocalId || (exameLocal ? exameLocal.id : null);
+      const caminhoDoc = item.caminhoArquivoArmazenado || (exameLocal ? exameLocal.caminhoArquivoArmazenado : null);
+
       let statusBadge = '';
-      if (item.statusExecucaoCodigo === '10') {
-        statusBadge = `<span class="badge-status" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 0.72rem;"><i class="fa-solid fa-clock"></i> Prescrito</span>`;
+      if (isLiberado) {
+        statusBadge = `<span class="badge-status status-liberado" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-check"></i> Triado / liberado</span>`;
+      } else if (isBloqueado) {
+        statusBadge = `<span class="badge-status status-bloqueado" style="font-size: 0.72rem;"><i class="fa-solid fa-ban"></i> Triado / bloqueado</span>`;
+      } else if (isEmTriagem) {
+        statusBadge = `<span class="badge-status status-em-triagem" style="font-size: 0.72rem;"><i class="fa-solid fa-spinner fa-spin"></i> Em triagem</span>`;
+      } else if (item.statusExecucaoCodigo === '10') {
+        statusBadge = `<span class="badge-status badge-tc" style="font-size: 0.72rem;"><i class="fa-solid fa-clock"></i> Prescrito</span>`;
       } else if (item.statusExecucaoCodigo === '11') {
-        statusBadge = `<span class="badge-status" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4); font-size: 0.72rem;"><i class="fa-solid fa-person-walking"></i> Chegando / Em Exame</span>`;
+        statusBadge = `<span class="badge-status status-aguardando" style="font-size: 0.72rem;"><i class="fa-solid fa-person-walking"></i> Chegando / em exame</span>`;
       } else if (item.statusExecucaoCodigo === '20') {
         statusBadge = `<span class="badge-status status-liberado" style="font-size: 0.72rem;"><i class="fa-solid fa-circle-check"></i> Executado</span>`;
       } else {
-        statusBadge = `<span class="badge-status" style="font-size: 0.72rem;">${item.statusExecucaoDescricao || 'Aguardando'}</span>`;
+        statusBadge = `<span class="badge-status" style="font-size: 0.72rem; background: var(--bg-card-subtle); color: var(--text-secondary); border: 1px solid var(--border-subtle);">${item.statusExecucaoDescricao || 'Aguardando'}</span>`;
+      }
+
+      let btnAcao = '';
+      if (isLiberado && exameIdEfetivo) {
+        btnAcao = `
+          <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
+            <button type="button" class="btn btn--secondary" style="padding: 6px 12px; font-size: 0.78rem; border-color: rgba(34, 197, 94, 0.5); color: #22c55e; background: rgba(34, 197, 94, 0.1);" onclick="abrirTriagem(${exameIdEfetivo})">
+              <i class="fa-solid fa-file-circle-check"></i> Ver ficha
+            </button>
+            ${caminhoDoc ? `
+              <button type="button" class="btn btn--secondary" style="padding: 6px 10px; font-size: 0.78rem;" title="Visualizar documento salvo" onclick="exibirModalArquivoSalvo('${caminhoDoc.replace(/\\/g, '\\\\')}')">
+                <i class="fa-solid fa-file-pdf"></i>
+              </button>
+            ` : ''}
+          </div>
+        `;
+      } else if (isBloqueado && exameIdEfetivo) {
+        btnAcao = `
+          <button type="button" class="btn btn--secondary" style="padding: 6px 12px; font-size: 0.78rem; border-color: rgba(239, 68, 68, 0.5); color: #ef4444; background: rgba(239, 68, 68, 0.1);" onclick="abrirTriagem(${exameIdEfetivo})">
+            <i class="fa-solid fa-ban"></i> Ver bloqueio
+          </button>
+        `;
+      } else {
+        btnAcao = `
+          <button type="button" class="btn btn--primary" style="padding: 6px 12px; font-size: 0.78rem; background: linear-gradient(135deg, #7c3aed, #a855f7); box-shadow: 0 2px 8px rgba(168, 85, 247, 0.3);" onclick="iniciarTriagemExameTasy(${index})">
+            <i class="fa-solid fa-clipboard-check"></i> Iniciar triagem
+          </button>
+        `;
       }
 
       return `
         <tr>
           <td>
-            <div style="font-weight: 700; color: #fff;">${horaFormatada}</div>
+            <div style="font-weight: 700; color: var(--text-primary);">${horaFormatada}</div>
             <div style="font-size: 0.72rem; color: var(--text-muted);">${dataFormatada}</div>
           </td>
           <td>
             <span style="font-weight: 700; color: var(--cyan-400);">#${item.atendimento}</span>
-            <div style="font-size: 0.72rem; color: var(--purple-300); font-weight: 600;">Seq. Interna: ${item.sequenciaProcedimentoInterno || '-'}</div>
+            <div style="font-size: 0.72rem; color: var(--purple-400); font-weight: 600;" title="Seq. interno: ${item.nrSeqProcInterno || item.sequenciaProcedimentoInterno || '-'}">Seq. interno: ${item.nrSeqProcInterno || item.sequenciaProcedimentoInterno || '-'}</div>
           </td>
           <td>
-            <div style="font-weight: 700; color: #fff;">${item.pacienteNome}</div>
+            <div style="font-weight: 700; color: var(--text-primary);">${item.pacienteNome}</div>
             <div style="font-size: 0.75rem; color: var(--text-muted);">
               ${item.idade ? `${item.idade} anos` : 'Idade -'} | ${item.sexo === 'M' ? 'Masc' : (item.sexo === 'F' ? 'Fem' : '-')} | CPF: ${cpfFormatado}
             </div>
           </td>
           <td>
-            <div style="font-weight: 600; color: var(--purple-300);">${item.procedimentoNome}</div>
+            <div style="font-weight: 600; color: var(--purple-400);">${item.procedimentoNome}</div>
             <div style="font-size: 0.72rem; color: var(--text-muted);">Cód Tasy: ${item.codigoProcedimento || '-'} | Setor 17 (RM)</div>
           </td>
-          <td style="font-size: 0.85rem; color: #cbd5e1;">${item.medicoSolicitante || '<span style="color:var(--text-muted);">-</span>'}</td>
-          <td style="font-size: 0.85rem; color: #cbd5e1;">${item.convenio || '<span style="color:var(--text-muted);">Particular</span>'}</td>
+          <td style="font-size: 0.85rem; color: var(--text-secondary);">${item.medicoSolicitante || '<span style="color:var(--text-muted);">-</span>'}</td>
+          <td style="font-size: 0.85rem; color: var(--text-secondary);">${item.convenio || '<span style="color:var(--text-muted);">Particular</span>'}</td>
           <td>${statusBadge}</td>
           <td style="text-align: right;">
-            <button type="button" class="btn btn--primary" style="padding: 6px 12px; font-size: 0.78rem; background: linear-gradient(135deg, #7c3aed, #a855f7); box-shadow: 0 2px 8px rgba(168, 85, 247, 0.3);" onclick="iniciarTriagemExameTasy(${index})">
-              <i class="fa-solid fa-clipboard-check"></i> Iniciar Triagem
-            </button>
+            ${btnAcao}
           </td>
         </tr>
       `;
@@ -4938,11 +5141,16 @@ function selecionarDataTesteTasy() {
   carregarExamesDiaTasy('2014-05-30', document.getElementById('inputBuscaTasy')?.value);
 }
 
-function inferirProtocoloPorProcedimento(descricao, codigoProcedimento) {
-  // 1. Tenta correspondência direta no catálogo de procedimentos por código TUSS/Tasy
-  if (codigoProcedimento) {
-    const matchCod = buscarProcedimentoPorCodigoTuss(String(codigoProcedimento));
-    if (matchCod) return matchCod.protocoloId;
+function inferirProtocoloPorProcedimento(descricao, codigoProcedimento, sequenciaInterna) {
+  // 1. Tenta correspondência direta no catálogo de procedimentos por sequência Tasy, código Tasy/TUSS ou nome exato
+  if (sequenciaInterna) {
+    const matchSeq = buscarProcedimentoPorCodigoTuss(String(sequenciaInterna), null);
+    if (matchSeq) return matchSeq.protocoloId;
+  }
+
+  if (codigoProcedimento || descricao) {
+    const matchCodOuNome = buscarProcedimentoPorCodigoTuss(codigoProcedimento ? String(codigoProcedimento) : '', descricao);
+    if (matchCodOuNome) return matchCodOuNome.protocoloId;
   }
 
   const descUpper = (descricao || '').toUpperCase();
@@ -4980,22 +5188,37 @@ async function iniciarTriagemExameTasy(index) {
   const itemTasy = UIState.examesTasyDia[index];
   if (!itemTasy) return;
 
-  const salaAtual = UIState.workstation?.salaPadrao || 'RM-01';
-  const protoId = inferirProtocoloPorProcedimento(itemTasy.procedimentoNome, itemTasy.codigoProcedimento);
-  const protoInfo = PROTOCOLOS_CATALOGO_INFO[protoId] || { nome: 'Ressonância Magnética' };
+  // 1. Se o exame já foi consumido/triado e possui ID local, abre diretamente a visualização da ficha/bloqueio
+  if (itemTasy.triado && itemTasy.exameLocalId) {
+    await abrirTriagem(itemTasy.exameLocalId);
+    return;
+  }
 
+  const salaAtual = UIState.workstation?.salaPadrao || 'RM-01';
+  const seqProcTasy = itemTasy.nrSeqProcInterno || itemTasy.sequenciaProcedimentoInterno;
+  const protoId = inferirProtocoloPorProcedimento(itemTasy.procedimentoNome, itemTasy.codigoProcedimento, seqProcTasy);
+  const protoInfo = PROTOCOLOS_CATALOGO_INFO[protoId] || { nome: 'Ressonância Magnética' };
   // Verifica se o exame já está na fila local (compara atendimento e sequenciaProcedimentoInterno)
   let exameLocal = UIState.exames.find(e => 
     e.atendimento === itemTasy.atendimento && 
-    (itemTasy.sequenciaProcedimentoInterno ? e.sequenciaProcedimentoInterno === itemTasy.sequenciaProcedimentoInterno : true)
+    (seqProcTasy ? String(e.nrSeqProcInterno || e.sequenciaProcedimentoInterno) === String(seqProcTasy) : true)
   );
+
+  // 2. Se já foi encontrado localmente e já está finalizado, abre a ficha e não reinicia o ciclo
+  if (exameLocal && (exameLocal.status === 'LIBERADO' || exameLocal.status === 'BLOQUEADO_SEGURANCA')) {
+    await abrirTriagem(exameLocal.id);
+    return;
+  }
 
   if (exameLocal) {
     // Atualiza sala e dados do atendimento
     exameLocal.sala = salaAtual;
     if (itemTasy.medicoSolicitante) exameLocal.medicoSolicitante = itemTasy.medicoSolicitante;
     if (itemTasy.convenio) exameLocal.convenio = itemTasy.convenio;
-    if (itemTasy.sequenciaProcedimentoInterno) exameLocal.sequenciaProcedimentoInterno = itemTasy.sequenciaProcedimentoInterno;
+    if (seqProcTasy) {
+      exameLocal.sequenciaProcedimentoInterno = seqProcTasy;
+      exameLocal.nrSeqProcInterno = seqProcTasy;
+    }
   } else {
     // Cria novo exame a partir do Tasy
     const novoId = Date.now();
@@ -5006,7 +5229,8 @@ async function iniciarTriagemExameTasy(index) {
     exameLocal = {
       id: novoId,
       atendimento: itemTasy.atendimento,
-      sequenciaProcedimentoInterno: itemTasy.sequenciaProcedimentoInterno,
+      sequenciaProcedimentoInterno: seqProcTasy,
+      nrSeqProcInterno: seqProcTasy,
       pacienteNome: itemTasy.pacienteNome,
       documentoCpf: itemTasy.cpf || '00000000000',
       idade: itemTasy.idade || 40,
@@ -5025,6 +5249,7 @@ async function iniciarTriagemExameTasy(index) {
       convenio: itemTasy.convenio || 'Particular',
       sala: salaAtual,
       horario: hora,
+      dataEntrada: itemTasy.dataEntrada,
       status: 'AGUARDANDO_TRIAGEM',
       statusTasy: itemTasy.statusExecucaoDescricao,
       origemIntegracao: 'TASY'
@@ -5033,12 +5258,62 @@ async function iniciarTriagemExameTasy(index) {
     UIState.exames.unshift(exameLocal);
   }
 
+  // Se online e o exame tem ID temporário, já sincroniza previamente com a base MySQL
+  if (UIState.online && exameLocal.id > 1000000000) {
+    try {
+      const syncRes = await ApiClient.importarExameTasy({
+        atendimento: itemTasy.atendimento,
+        sequenciaProcedimentoInterno: seqProcTasy,
+        nrSeqProcInterno: seqProcTasy,
+        pacienteNome: itemTasy.pacienteNome,
+        cpf: itemTasy.cpf,
+        idade: itemTasy.idade,
+        dataNascimento: itemTasy.dataNascimento,
+        sexo: itemTasy.sexo,
+        telefone: itemTasy.telefone,
+        pesoKg: exameLocal.pesoKg || 70.0,
+        alturaCm: exameLocal.alturaCm || 170,
+        modalidade: 'RM',
+        tipoFormulario: protoId,
+        segmentoLado: protoInfo.nome,
+        procedimentoNome: itemTasy.procedimentoNome,
+        codigoProcedimento: itemTasy.codigoProcedimento,
+        medicoSolicitante: itemTasy.medicoSolicitante,
+        convenio: itemTasy.convenio || 'Particular',
+        sala: salaAtual,
+        dataEntrada: itemTasy.dataEntrada
+      });
+
+      if (syncRes && syncRes.id) {
+        exameLocal.id = syncRes.id;
+        if (syncRes.pacienteId) exameLocal.pacienteId = syncRes.pacienteId;
+        if (syncRes.status) exameLocal.status = normalizarStatus(syncRes.status);
+        if (syncRes.caminhoArquivoArmazenado) exameLocal.caminhoArquivoArmazenado = syncRes.caminhoArquivoArmazenado;
+        if (syncRes.statusRiscoSemaforo) exameLocal.statusRiscoSemaforo = syncRes.statusRiscoSemaforo;
+
+        // Atualiza itemTasy correspondente
+        itemTasy.exameLocalId = syncRes.id;
+        itemTasy.statusTriagem = syncRes.status;
+        itemTasy.triado = (syncRes.status === 'LIBERADO' || syncRes.status === 'BLOQUEADO_SEGURANCA');
+
+        // Se o exame já estava liberado ou bloqueado no banco de dados, abre visualização e encerra ciclo
+        if (exameLocal.status === 'LIBERADO' || exameLocal.status === 'BLOQUEADO_SEGURANCA') {
+          renderizarWorklist();
+          await abrirTriagem(exameLocal.id);
+          return;
+        }
+      }
+    } catch (errSync) {
+      console.warn('Sincronização prévia do exame com o banco será finalizada ao salvar:', errSync.message);
+    }
+  }
+
   // Atualiza grid da worklist (que também recalcula os contadores automaticamente)
   renderizarWorklist();
 
   // Abre diretamente a tela de triagem preenchendo todos os dados do paciente
   await abrirTriagem(exameLocal.id);
 
-  showToast(`Triagem iniciada para ${exameLocal.pacienteNome} (Atend. #${exameLocal.atendimento}${exameLocal.sequenciaProcedimentoInterno ? ` | Seq. ${exameLocal.sequenciaProcedimentoInterno}` : ''})! Posto: ${salaAtual}`, 'success');
+  showToast(`Triagem iniciada para ${exameLocal.pacienteNome} (Atend. #${exameLocal.atendimento}${exameLocal.nrSeqProcInterno || exameLocal.sequenciaProcedimentoInterno ? ` | Seq. interno: ${exameLocal.nrSeqProcInterno || exameLocal.sequenciaProcedimentoInterno}` : ''})! Posto: ${salaAtual}`, 'success');
 }
 

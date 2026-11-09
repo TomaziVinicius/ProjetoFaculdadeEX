@@ -144,7 +144,7 @@ public sealed class TasyService : ITasyService
 
         if (!string.IsNullOrWhiteSpace(busca))
         {
-            whereClauses.Add("UPPER(DS_PROC_EXAME) LIKE :p_busca");
+            whereClauses.Add("(UPPER(DS_PROC_EXAME) LIKE :p_busca OR TO_CHAR(CD_PROCEDIMENTO) LIKE :p_busca OR TO_CHAR(NR_SEQUENCIA) LIKE :p_busca)");
             cmd.Parameters.Add(new OracleParameter("p_busca", OracleDbType.Varchar2, $"%{busca.Trim().ToUpperInvariant()}%", ParameterDirection.Input));
         }
 
@@ -188,7 +188,8 @@ public sealed class TasyService : ITasyService
         var whereSql = string.Empty;
         if (!string.IsNullOrWhiteSpace(busca))
         {
-            whereSql = "WHERE UPPER(DS_PROC_EXAME) LIKE :p_busca";
+            cmd.BindByName = true;
+            whereSql = "WHERE (UPPER(DS_PROC_EXAME) LIKE :p_busca OR TO_CHAR(CD_PROCEDIMENTO) LIKE :p_busca OR TO_CHAR(NR_SEQUENCIA) LIKE :p_busca)";
             cmd.Parameters.Add(new OracleParameter("p_busca", OracleDbType.Varchar2, $"%{busca.Trim().ToUpperInvariant()}%", ParameterDirection.Input));
         }
 
@@ -252,23 +253,8 @@ public sealed class TasyService : ITasyService
 
         var sql = $@"
             SELECT 
-                NR_ATENDIMENTO,
-                CD_PESSOA_FISICA,
-                NM_PESSOA_FISICA,
-                DT_NASCIMENTO,
-                IE_SEXO,
-                NR_CPF,
-                NR_TELEFONE_CELULAR,
-                DT_ENTRADA,
-                NR_PRESCRICAO,
-                DS_CONVENIO,
-                DS_MEDICO_SOLICITANTE,
-                CD_PROCEDIMENTO,
-                DS_PROCEDIMENTO,
-                NR_SEQ_PROC_INTERNO,
-                CD_SETOR_ATENDIMENTO,
-                IE_STATUS_EXECUCAO
-            FROM {_settings.ExamesDiaView}
+                v.*
+            FROM {_settings.ExamesDiaView} v
             {whereClause}
             ORDER BY DT_ENTRADA DESC
             OFFSET :p_offset ROWS FETCH NEXT :p_limite ROWS ONLY";
@@ -306,8 +292,35 @@ public sealed class TasyService : ITasyService
             var medico = reader.IsDBNull(reader.GetOrdinal("DS_MEDICO_SOLICITANTE")) ? null : reader.GetString(reader.GetOrdinal("DS_MEDICO_SOLICITANTE")).Trim();
             var codProc = reader.IsDBNull(reader.GetOrdinal("CD_PROCEDIMENTO")) ? null : (long?)reader.GetInt64(reader.GetOrdinal("CD_PROCEDIMENTO"));
             var procNome = reader.IsDBNull(reader.GetOrdinal("DS_PROCEDIMENTO")) ? $"Procedimento Tasy ({codProc})" : reader.GetString(reader.GetOrdinal("DS_PROCEDIMENTO")).Trim();
-            var seqInterno = reader.IsDBNull(reader.GetOrdinal("NR_SEQ_PROC_INTERNO")) ? null : (long?)reader.GetInt64(reader.GetOrdinal("NR_SEQ_PROC_INTERNO"));
             var setor = reader.IsDBNull(reader.GetOrdinal("CD_SETOR_ATENDIMENTO")) ? null : (long?)reader.GetInt64(reader.GetOrdinal("CD_SETOR_ATENDIMENTO"));
+            long? seqInterno = null;
+            // Prioriza NR_SEQUENCIA ou NR_SEQ_INTERNO (o sequencial interno do item prescrito, ex: 3375686)
+            int colSeq = -1;
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                var colName = reader.GetName(i);
+                if (colName.Equals("NR_SEQUENCIA", StringComparison.OrdinalIgnoreCase) ||
+                    colName.Equals("NR_SEQ_INTERNO", StringComparison.OrdinalIgnoreCase))
+                {
+                    colSeq = i;
+                    break;
+                }
+            }
+            if (colSeq == -1)
+            {
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    if (reader.GetName(i).Equals("NR_SEQ_PROC_INTERNO", StringComparison.OrdinalIgnoreCase))
+                    {
+                        colSeq = i;
+                        break;
+                    }
+                }
+            }
+            if (colSeq >= 0 && !reader.IsDBNull(colSeq))
+            {
+                seqInterno = Convert.ToInt64(reader.GetValue(colSeq));
+            }
             
             var statusCod = reader.IsDBNull(reader.GetOrdinal("IE_STATUS_EXECUCAO")) ? null : reader.GetString(reader.GetOrdinal("IE_STATUS_EXECUCAO")).Trim();
             var statusDesc = statusCod switch

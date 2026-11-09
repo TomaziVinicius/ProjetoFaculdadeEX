@@ -19,79 +19,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
   <!-- Estilos Globais do Design System -->
-  <link rel="stylesheet" href="css/style.css?v=20261026_05">
+  <link rel="stylesheet" href="css/style.css?v=20261103_02">
 
-  <style>
-    .custom-select-container {
-      position: relative;
-      display: inline-block;
-      min-width: 320px;
-    }
-
-    .custom-select-trigger {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      background-color: var(--bg-input, #0b101a);
-      color: #fff;
-      border: 1px solid var(--cyan-500, #0ea5e9);
-      border-radius: 8px;
-      padding: 9px 14px;
-      font-size: 0.88rem;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 0 12px rgba(14, 165, 233, 0.16);
-      user-select: none;
-      transition: all 0.2s ease;
-    }
-
-    .custom-select-trigger:hover {
-      border-color: var(--cyan-400, #38bdf8);
-      box-shadow: 0 0 16px rgba(14, 165, 233, 0.3);
-    }
-
-    .custom-select-menu {
-      position: absolute;
-      top: calc(100% + 6px);
-      left: 0;
-      right: 0;
-      background-color: #0d1424;
-      border: 1px solid var(--cyan-500, #0ea5e9);
-      border-radius: 8px;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7), 0 0 20px rgba(14, 165, 233, 0.25);
-      padding: 6px;
-      z-index: 9999;
-      display: none;
-      backdrop-filter: blur(14px);
-    }
-
-    .custom-select-option {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
-      border-radius: 6px;
-      color: #f8fafc;
-      font-size: 0.86rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.15s ease, color 0.15s ease;
-      user-select: none;
-    }
-
-    .custom-select-option:hover {
-      background: rgba(56, 189, 248, 0.15);
-      color: #38bdf8;
-    }
-
-    .custom-select-option.is-selected {
-      background: rgba(56, 189, 248, 0.22);
-      color: #ffffff;
-      font-weight: 700;
-      border-left: 3px solid #38bdf8;
-    }
-  </style>
 </head>
 
 <body>
@@ -109,7 +38,7 @@
   <div id="login-screen" class="login-gate-screen">
     <div class="glass-panel login-gate-card">
       <div class="login-theme-toggle">
-        <button type="button" class="btn-theme-toggle" id="btnLoginThemeToggle" title="Alternar Modo Escuro / Claro">
+        <button type="button" class="btn-theme-toggle" id="btnLoginThemeToggle" title="Alternar modo escuro / claro">
           <i class="fa-solid fa-moon" id="loginThemeIcon"></i>
         </button>
       </div>
@@ -119,7 +48,7 @@
           <i class="fa-solid fa-x-ray"></i>
         </div>
         <h1 class="login-title">Triagem <span>Imagem</span></h1>
-        <p class="login-subtitle">Posto Operacional Clínico | Tomografia &amp; Ressonância</p>
+        <p class="login-subtitle">Posto operacional clínico | Tomografia &amp; ressonância</p>
       </div>
 
       <div id="loginAlertBox" class="login-alert-box hidden"></div>
@@ -127,7 +56,7 @@
       <form id="form-login">
         <div class="form-field">
           <label class="form-label" for="login-username">
-            <i class="fa-solid fa-user"></i> Login do Operador
+            <i class="fa-solid fa-user"></i> Login do operador
           </label>
           <div class="input-icon-wrapper">
             <i class="fa-solid fa-id-badge input-icon"></i>
@@ -138,7 +67,7 @@
 
         <div class="form-field">
           <label class="form-label" for="login-password">
-            <i class="fa-solid fa-lock"></i> Senha de Acesso
+            <i class="fa-solid fa-lock"></i> Senha de acesso
           </label>
           <div class="input-icon-wrapper">
             <i class="fa-solid fa-key input-icon"></i>
@@ -151,7 +80,7 @@
         </div>
 
         <button type="submit" class="btn-login-submit" id="btnLoginSubmit">
-          <i class="fa-solid fa-right-to-bracket"></i> Acessar Posto de Triagem
+          <i class="fa-solid fa-right-to-bracket"></i> Acessar posto de triagem
         </button>
       </form>
 
@@ -184,32 +113,32 @@
           </div>
           <div>
             <div class="brand-title">Triagem <span>Imagem</span></div>
-            <div class="brand-tag">Posto Operacional TC / RM</div>
+            <div class="brand-tag">Posto operacional TC / RM</div>
           </div>
         </div>
 
         <nav class="sidebar-nav">
-          <div class="nav-label">Operação Diária</div>
+          <div class="nav-label">Operação diária</div>
           <button type="button" class="sidebar-nav-item active" id="navWorklist" data-view="view-worklist">
             <i class="fa-solid fa-list-check"></i>
-            <span>Grade de Exames</span>
+            <span>Grade de exames</span>
             <span class="badge-count" id="badgeWorklistCount">4</span>
           </button>
           <button type="button" class="sidebar-nav-item" id="navTriagem" data-view="view-triagem" disabled>
             <i class="fa-solid fa-file-medical"></i>
-            <span>Ficha de Triagem</span>
+            <span>Ficha de triagem</span>
           </button>
 
           <div class="nav-label">Rastreabilidade &amp; TI</div>
           <button type="button" class="sidebar-nav-item" id="navAuditoria" data-view="view-auditoria">
             <i class="fa-solid fa-clipboard-check"></i>
-            <span>Auditoria &amp; Logs</span>
+            <span>Auditoria &amp; logs</span>
           </button>
 
-          <div class="nav-label" id="navLabelAdmin">Administração &amp; Gestão</div>
+          <div class="nav-label" id="navLabelAdmin">Administração &amp; gestão</div>
           <button type="button" class="sidebar-nav-item" id="navAdmin" data-view="view-admin">
             <i class="fa-solid fa-user-gear"></i>
-            <span>Painel Admin</span>
+            <span>Painel admin</span>
             <span class="badge-count" style="background: rgba(14, 165, 233, 0.2); color: var(--cyan-400);">TI</span>
           </button>
         </nav>
@@ -227,7 +156,7 @@
         </div>
         <button type="button" class="btn-logout" id="btnLogout">
           <i class="fa-solid fa-arrow-right-from-bracket"></i>
-          <span>Encerrar Sessão</span>
+          <span>Encerrar sessão</span>
         </button>
       </div>
     </aside>
@@ -236,19 +165,19 @@
     <div class="main-wrapper">
       <header class="topbar">
         <div class="topbar-left">
-          <h1 class="topbar-title" id="topbarTitle">Grade de Atendimentos do Dia</h1>
+          <h1 class="topbar-title" id="topbarTitle">Grade de atendimentos do dia</h1>
         </div>
         <div class="topbar-right">
           <button type="button" class="btn-layout-toggle" id="btnToggleLayoutNav"
-            title="Alternar entre Barra Superior e Menu Lateral">
+            title="Alternar entre barra superior e menu lateral">
             <i class="fa-solid fa-table-columns" id="iconLayoutToggle"></i>
-            <span id="textLayoutToggle">Mudar p/ Menu Lateral</span>
+            <span id="textLayoutToggle">Mudar p/ menu lateral</span>
           </button>
           <div class="status-pill" id="apiStatusPill" title="Status de conexão com o Backend .NET">
             <span class="status-dot" id="apiStatusDot"></span>
             <span id="apiStatusText">Verificando API...</span>
           </div>
-          <button type="button" class="btn-theme-toggle" id="btnMainThemeToggle" title="Alternar Tema">
+          <button type="button" class="btn-theme-toggle" id="btnMainThemeToggle" title="Alternar tema">
             <i class="fa-solid fa-moon" id="mainThemeIcon"></i>
           </button>
         </div>
@@ -267,7 +196,7 @@
               </div>
               <div class="stat-details">
                 <span class="stat-number" id="statTotal">4</span>
-                <span class="stat-label">Total de Exames Agendados</span>
+                <span class="stat-label">Total de exames agendados</span>
               </div>
             </div>
 
@@ -277,7 +206,7 @@
               </div>
               <div class="stat-details">
                 <span class="stat-number" id="statAguardando">4</span>
-                <span class="stat-label">Aguardando Triagem</span>
+                <span class="stat-label">Aguardando triagem</span>
               </div>
             </div>
 
@@ -287,7 +216,7 @@
               </div>
               <div class="stat-details">
                 <span class="stat-number" id="statLiberados">0</span>
-                <span class="stat-label">Liberados com Sucesso</span>
+                <span class="stat-label">Liberados com sucesso</span>
               </div>
             </div>
 
@@ -297,7 +226,7 @@
               </div>
               <div class="stat-details">
                 <span class="stat-number" id="statBloqueados">0</span>
-                <span class="stat-label">Bloqueios de Segurança</span>
+                <span class="stat-label">Bloqueios de segurança</span>
               </div>
             </div>
           </div>
@@ -311,13 +240,12 @@
                 <i class="fa-solid fa-desktop"></i>
               </div>
               <div>
-                <div
-                  style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px;">
-                  Posto Operacional Conectado (Equipamento / Sala)
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px;">
+                  Posto operacional conectado (equipamento / sala)
                 </div>
                 <div
-                  style="font-size: 0.95rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
-                  <span id="txtWorkstationDescricao">Identificando estação...</span>
+                  style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                  <span id="txtWorkstationDescricao" style="color: var(--text-primary);">Identificando estação...</span>
                   <span class="badge-modalidade badge-rm" style="font-size: 0.7rem; padding: 2px 8px;">Setor 17 -
                     Ressonância</span>
                 </div>
@@ -327,25 +255,24 @@
             <div style="display: flex; align-items: center; gap: 8px;">
               <button type="button" class="btn btn--secondary" id="btnRecarregarTasyDia"
                 style="font-size: 0.8rem; padding: 6px 14px; border-color: rgba(168, 85, 247, 0.4); color: var(--purple-300);">
-                <i class="fa-solid fa-rotate"></i> Atualizar Exames Tasy
+                <i class="fa-solid fa-rotate"></i> Atualizar exames Tasy
               </button>
               <button type="button" class="btn btn--secondary" id="btnTogglePainelTasy"
                 style="font-size: 0.8rem; padding: 6px 14px; border-color: rgba(56, 189, 248, 0.4); color: var(--cyan-400);">
-                <i class="fa-solid fa-layer-group"></i> <span id="txtTogglePainelTasy">Ocultar Painel Tasy</span>
+                <i class="fa-solid fa-layer-group"></i> <span id="txtTogglePainelTasy">Ocultar painel Tasy</span>
               </button>
             </div>
           </div>
 
           <!-- Painel Integrado Tasy: Localizador de Exames do Dia (Setor 17 - Ressonância) -->
-          <div class="glass-panel" id="painelTasyExamesDia"
-            style="margin-top: 16px; padding: 18px; border: 1px solid rgba(168, 85, 247, 0.3); background: rgba(15, 23, 42, 0.65);">
+          <div class="glass-panel tasy-exames-dia-panel" id="painelTasyExamesDia">
             <div
               style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px;">
               <div>
                 <h3
-                  style="font-size: 1.05rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
+                  style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; margin: 0;">
                   <i class="fa-solid fa-hospital-user" style="color: var(--purple-400);"></i>
-                  Exames do Dia no Tasy &amp; Chegada ao Setor
+                  Exames do dia no Tasy &amp; chegada ao setor
                   <span class="badge-status" id="badgeTotalTasyDia"
                     style="background: rgba(168, 85, 247, 0.2); color: var(--purple-300); border: 1px solid rgba(168, 85, 247, 0.4); font-size: 0.75rem;">0
                     exames</span>
@@ -372,7 +299,7 @@
                     style="padding: 4px 10px; font-size: 0.75rem;">Ontem</button>
                   <button type="button" class="filter-chip" id="btnDataTasyTeste"
                     style="padding: 4px 10px; font-size: 0.75rem; border-color: rgba(245, 158, 11, 0.5); color: var(--amber-400);"
-                    title="Data com exames na base de testes tasytst">Base Teste (30/05/2014)</button>
+                    title="Data com exames na base de testes tasytst">Base de teste (30/05/2014)</button>
                 </div>
               </div>
             </div>
@@ -382,7 +309,7 @@
               <div class="search-box" style="flex: 1;">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
                 <input type="text" id="inputBuscaTasy" class="form-input"
-                  placeholder="Buscar por Nome do Paciente, CPF ou Número de Atendimento no Tasy...">
+                  placeholder="Buscar por nome do paciente, CPF ou número de atendimento no Tasy...">
               </div>
               <button type="button" class="btn btn--primary" id="btnBuscarTasy"
                 style="padding: 0 18px; font-size: 0.85rem; background: linear-gradient(135deg, #7c3aed, #a855f7);">
@@ -397,10 +324,10 @@
                 <thead>
                   <tr>
                     <th>Horário</th>
-                    <th>Atendimento / Seq.</th>
+                    <th>Atendimento / seq.</th>
                     <th>Paciente</th>
                     <th>Procedimento</th>
-                    <th>Médico Solicitante</th>
+                    <th>Médico solicitante</th>
                     <th>Convênio</th>
                     <th>Status Tasy</th>
                     <th style="text-align: left;">Ação</th>
@@ -423,8 +350,8 @@
             <div class="search-box">
               <i class="fa-solid fa-magnifying-glass search-icon"></i>
               <input type="text" id="inputSearchWorklist" class="form-input"
-                placeholder="Filtrar fila de atendimento por Paciente, CPF, Atendimento ou Sala..." autofocus>
-              <span class="search-shortcut-hint">Foco Imediato</span>
+                placeholder="Filtrar fila de atendimento por paciente, CPF, atendimento ou sala..." autofocus>
+              <span class="search-shortcut-hint">Foco imediato</span>
             </div>
 
             <div class="filter-chips">
@@ -433,11 +360,11 @@
               <button type="button" class="filter-chip" data-filter="RM">Ressonância (RM)</button>
               <button type="button" class="filter-chip" data-filter="AGUARDANDO_TRIAGEM">Aguardando</button>
               <button type="button" class="filter-chip" data-filter="LIBERADO">Liberados</button>
-              <button type="button" class="filter-chip" data-filter="BLOQUEADO_SEGURANCA">Não Permitidos</button>
+              <button type="button" class="filter-chip" data-filter="BLOQUEADO_SEGURANCA">Não permitidos</button>
               <button type="button" class="btn btn--secondary"
                 style="font-size: 0.8rem; padding: 6px 12px; margin-left: 8px; border-color: rgba(56, 189, 248, 0.4); color: var(--cyan-400);"
                 onclick="abrirModalWorklistLab()">
-                <i class="fa-solid fa-database"></i> Banco 2 (HIS-RIS Lab)
+                <i class="fa-solid fa-database"></i> Banco 2 (HIS-RIS lab)
               </button>
             </div>
           </div>
@@ -478,13 +405,13 @@
                 <h2 id="triagemPacienteNome">Carregando dados do paciente...</h2>
                 <div class="meta-tags">
                   <span class="meta-tag">Atendimento: <strong id="triagemAtendimentoNum">-</strong></span>
-                  <span class="meta-tag">Seq. Interna: <strong id="triagemSeqInterna">-</strong></span>
+                  <span class="meta-tag">Seq. Interno: <strong id="triagemSeqInterna">-</strong></span>
                   <span class="meta-tag">CPF: <strong id="triagemCpf">-</strong></span>
                   <span class="meta-tag">Idade: <strong id="triagemIdade">-</strong></span>
                   <span class="meta-tag">Sexo: <strong id="triagemSexo">-</strong></span>
                   <span class="meta-tag">Procedimento: <strong id="triagemProcedimento">-</strong></span>
                   <span class="meta-tag">Sala: <strong id="triagemSala">-</strong></span>
-                  <span class="meta-tag">Médico Solicitante: <strong id="triagemMedicoSolicitante">-</strong></span>
+                  <span class="meta-tag">Médico solicitante: <strong id="triagemMedicoSolicitante">-</strong></span>
                   <span class="meta-tag">Convênio: <strong id="triagemConvenio">-</strong></span>
                 </div>
               </div>
@@ -504,12 +431,12 @@
                 <i class="fa-solid fa-check"></i>
               </div>
               <div class="semaforo-text">
-                <h3 id="semaforoTitulo">SEMÁFORO CLÍNICO: NENHUM IMPEDIMENTO DETECTADO</h3>
+                <h3 id="semaforoTitulo">Semáforo clínico: nenhum impedimento detectado</h3>
                 <p id="semaforoDescricao">Procedimento apto para realização mediante confirmação do checklist
                   obrigatório.</p>
               </div>
             </div>
-            <div class="semaforo-badge-state" id="semaforoBadgeState">RISCO VERDE</div>
+            <div class="semaforo-badge-state" id="semaforoBadgeState">Risco verde</div>
           </div>
 
           <!-- Section 1: Checklist de Aviação Radiológica -->
@@ -517,12 +444,12 @@
             <div class="section-header">
               <div class="section-title">
                 <i class="fa-solid fa-clipboard-list" style="color: var(--cyan-400);"></i>
-                <span id="checklistProtocoloTitulo">Checklist de Segurança Mandatório</span>
+                <span id="checklistProtocoloTitulo">Checklist de segurança mandatório</span>
               </div>
               <div class="keyboard-shortcut-banner">
                 <i class="fa-solid fa-keyboard"></i>
-                <span>Teclas Rápidas: <strong>[1]</strong> = NÃO | <strong>[2]</strong> = SIM | <strong>[Tab]</strong> =
-                  Avançar</span>
+                <span>Teclas rápidas: <strong>[1]</strong> = não | <strong>[2]</strong> = sim | <strong>[Tab]</strong> =
+                  avançar</span>
               </div>
             </div>
 
@@ -536,7 +463,7 @@
             <div class="section-header">
               <div class="section-title">
                 <i class="fa-solid fa-calculator" style="color: var(--cyan-400);"></i>
-                <span>Calculadora de Dosagem de Contraste &amp; Segurança Renal</span>
+                <span>Calculadora de dosagem de contraste &amp; segurança renal</span>
               </div>
             </div>
 
@@ -545,7 +472,7 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
                   <div class="form-field">
                     <label class="form-label" for="calcPesoInput">
-                      <i class="fa-solid fa-weight-scale"></i> Peso Real (kg)
+                      <i class="fa-solid fa-weight-scale"></i> Peso real (kg)
                     </label>
                     <input type="number" step="0.5" id="calcPesoInput" class="form-input" placeholder="Ex: 75.0"
                       value="75.0">
@@ -561,8 +488,8 @@
 
                 <div class="form-field" style="margin-bottom: 14px;">
                   <label class="form-label" for="calcIndicacaoClinicaInput">
-                    <i class="fa-solid fa-stethoscope"></i> Indicação Clínica / Hipótese Diagnóstica (Aferida na
-                    Triagem)
+                    <i class="fa-solid fa-stethoscope"></i> Indicação clínica / hipótese diagnóstica (aferida na
+                    triagem)
                   </label>
                   <input type="text" id="calcIndicacaoClinicaInput" class="form-input"
                     placeholder="Ex: Suspeita de hérnia discal L4-L5, dorsalgia crônica, pós-trauma...">
@@ -571,14 +498,14 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                   <div class="form-field">
                     <label class="form-label" for="calcCreatininaInput">
-                      <i class="fa-solid fa-vial"></i> Creatinina Sérica (mg/dL)
+                      <i class="fa-solid fa-vial"></i> Creatinina sérica (mg/dL)
                     </label>
                     <input type="number" step="0.1" id="calcCreatininaInput" class="form-input"
                       placeholder="Ex: 1.0 (Normal: 0.7 - 1.2)">
                   </div>
                   <div class="form-field">
                     <label class="form-label" for="calcLoteInput">
-                      <i class="fa-solid fa-barcode"></i> Lote Contraste
+                      <i class="fa-solid fa-barcode"></i> Lote do contraste
                     </label>
                     <input type="text" id="calcLoteInput" class="form-input" placeholder="Ex: LOT-2026-X49B"
                       value="LOT-2026-X49B">
@@ -588,12 +515,12 @@
 
               <div class="dose-result-box">
                 <span class="dose-result-number" id="calcDoseResultado">112.5</span>
-                <span class="dose-result-unit">mL de Volume Calculado</span>
+                <span class="dose-result-unit">mL de volume calculado</span>
                 <span class="dose-result-details" id="calcDoseDetalhes">Proporção clínica recomendada: 1.5 mL / kg de
                   contraste.</span>
                 <div id="calcImcResultado"
                   style="margin-top: 10px; font-size: 0.8rem; color: var(--purple-300); font-weight: 600;">
-                  IMC Estimado: 24.5 kg/m² (Eutrofia)
+                  IMC estimado: 24.5 kg/m² (eutrofia)
                 </div>
               </div>
             </div>
@@ -604,7 +531,7 @@
             <div class="section-header">
               <div class="section-title">
                 <i class="fa-solid fa-notes-medical" style="color: var(--cyan-400);"></i>
-                <span>Observações Clínicas do Operador</span>
+                <span>Observações clínicas do operador</span>
               </div>
             </div>
             <textarea id="txtObservacoesClinicas" class="form-input" rows="3"
@@ -616,40 +543,37 @@
             <div class="section-header">
               <div class="section-title">
                 <i class="fa-solid fa-file-signature" style="color: var(--cyan-400);"></i>
-                <span id="tituloAssinatura">Assinatura Digital &amp; Responsabilidade Técnica</span>
+                <span id="tituloAssinatura">Assinatura digital &amp; responsabilidade técnica</span>
               </div>
               <div class="badge-status status-aguardando" id="badgeEstadoAssinatura">
-                <i class="fa-solid fa-pen-fancy"></i> Pré-Assinatura (Em Aberto)
+                <i class="fa-solid fa-pen-fancy"></i> Pré-assinatura (em aberto)
               </div>
             </div>
 
             <!-- Painel quando o exame ainda está em triagem (Pré-Assinatura) -->
             <div id="painelPreAssinatura"
-              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; background: rgba(30, 41, 59, 0.45); padding: 16px; border-radius: 8px; border: 1px solid var(--bg-card-border);">
+              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; background: var(--bg-card-subtle); padding: 16px; border-radius: 8px; border: 1px solid var(--border-subtle);">
               <div>
-                <span
-                  style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Profissional
-                  Executor:</span>
-                <div style="font-size: 0.95rem; font-weight: 700; color: #fff; margin-top: 4px;"
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Profissional
+                  executor:</span>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;"
                   id="assinaturaNomeOperador">Lucas Silva</div>
                 <div style="font-size: 0.8rem; color: var(--cyan-400);" id="assinaturaPerfilOperador">BIOMÉDICO (CRBM
                   14250)</div>
               </div>
               <div>
-                <span
-                  style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Carimbo
-                  de Integridade:</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Carimbo
+                  de integridade:</span>
                 <div
                   style="font-size: 0.85rem; font-family: var(--font-mono); color: var(--text-muted); margin-top: 4px;"
-                  id="assinaturaTimestamp">Sincronizado via Servidor .NET</div>
+                  id="assinaturaTimestamp">Sincronizado via servidor .NET</div>
                 <div style="font-size: 0.78rem; color: var(--emerald-400);"><i class="fa-solid fa-shield-halved"></i>
-                  Hash SHA-256 Clínico Ativo</div>
+                  Hash SHA-256 clínico ativo</div>
               </div>
               <div>
-                <span
-                  style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Segurança
-                  da Dose:</span>
-                <div style="font-size: 0.95rem; font-weight: 700; color: #38bdf8; margin-top: 4px;"
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Segurança
+                  da dose:</span>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--cyan-400); margin-top: 4px;"
                   id="assinaturaVolumeResumo">112.5 mL</div>
                 <div style="font-size: 0.78rem; color: var(--text-muted);" id="assinaturaLoteResumo">Lote: LOT-2026-X49B
                 </div>
@@ -661,26 +585,28 @@
               style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 8px; padding: 18px 20px;">
               <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
                 <div
-                  style="width: 44px; height: 44px; border-radius: 50%; background: rgba(16, 185, 129, 0.25); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+                  style="width: 44px; height: 44px; border-radius: 50%; background: rgba(16, 185, 129, 0.25); color: var(--emerald-400); display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
                   <i class="fa-solid fa-certificate"></i>
                 </div>
                 <div>
-                  <h4 style="font-family: var(--font-title); font-size: 1.1rem; color: #fff; margin: 0;">Ficha Assinada
-                    Digitalmente &amp; Concluída</h4>
-                  <p style="font-size: 0.85rem; color: #a7f3d0; margin-top: 2px;" id="posAssinaturaTexto">Exame liberado
+                  <h4 style="font-family: var(--font-title); font-size: 1.1rem; color: var(--text-primary); margin: 0;">
+                    Ficha assinada
+                    digitalmente &amp; concluída</h4>
+                  <p style="font-size: 0.85rem; color: var(--emerald-400); margin-top: 2px;" id="posAssinaturaTexto">
+                    Exame liberado
                     para execução clínica com assinatura digital válida.</p>
                 </div>
               </div>
               <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px;">
                 <button type="button" class="btn btn--secondary" id="btnVerLaudoArquivado">
-                  <i class="fa-solid fa-file-pdf"></i> Visualizar Laudo Salvo
+                  <i class="fa-solid fa-file-pdf"></i> Visualizar laudo salvo
                 </button>
                 <button type="button" class="btn btn--secondary" onclick="window.print()">
-                  <i class="fa-solid fa-print"></i> Imprimir Ficha Timbrada
+                  <i class="fa-solid fa-print"></i> Imprimir ficha timbrada
                 </button>
                 <button type="button" class="btn btn--secondary admin-only hidden" id="btnResetarStatusExameDetalhe"
                   style="border-color: rgba(239, 68, 68, 0.4); color: #f87171;">
-                  <i class="fa-solid fa-rotate-left"></i> [Admin] Reabrir Triagem (Resetar para Aguardando)
+                  <i class="fa-solid fa-rotate-left"></i> [Admin] Reabrir triagem (resetar para aguardando)
                 </button>
               </div>
             </div>
@@ -689,18 +615,18 @@
           <!-- Barra de Finalização e Liberação Rápida -->
           <div class="glass-panel triagem-actions-bar" style="margin-top: 20px;">
             <button type="button" class="btn btn--secondary" id="btnVoltarWorklist">
-              <i class="fa-solid fa-arrow-left"></i> Voltar à Fila
+              <i class="fa-solid fa-arrow-left"></i> Voltar à fila
             </button>
 
             <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
               <button type="button" class="btn btn--secondary" id="btnSalvarRascunho">
-                <i class="fa-solid fa-floppy-disk"></i> Salvar Rascunho
+                <i class="fa-solid fa-floppy-disk"></i> Salvar rascunho
               </button>
               <button type="button" class="btn-bloquear-final" id="btnBloquearExame" style="display: none;">
-                <i class="fa-solid fa-ban"></i> Encerrar Ficha &amp; Bloquear Exame
+                <i class="fa-solid fa-ban"></i> Encerrar ficha &amp; bloquear exame
               </button>
               <button type="button" class="btn-liberar-final" id="btnLiberarExame">
-                <i class="fa-solid fa-shield-check"></i> Liberar Exame com Segurança
+                <i class="fa-solid fa-shield-check"></i> Liberar exame com segurança
               </button>
             </div>
           </div>
@@ -714,8 +640,8 @@
             <div
               style="padding: 20px 24px; border-bottom: 1px solid var(--bg-card-border); display: flex; justify-content: space-between; align-items: center;">
               <div>
-                <h3 style="font-family: var(--font-title); font-size: 1.15rem;">Histórico Inviolável de Auditoria
-                  Clínica</h3>
+                <h3 style="font-family: var(--font-title); font-size: 1.15rem;">Histórico inviolável de auditoria
+                  clínica</h3>
                 <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Rastreabilidade completa de
                   logins, preenchimento, dosagens e liberações de exame.</p>
               </div>
@@ -727,11 +653,11 @@
             <table class="worklist-table">
               <thead>
                 <tr>
-                  <th>Data / Hora</th>
-                  <th>Operador Responsável</th>
-                  <th>Tipo do Evento</th>
-                  <th>Detalhes da Operação</th>
-                  <th>IP Origem</th>
+                  <th>Data / hora</th>
+                  <th>Operador responsável</th>
+                  <th>Tipo do evento</th>
+                  <th>Detalhes da operação</th>
+                  <th>IP de origem</th>
                 </tr>
               </thead>
               <tbody id="auditoriaTableBody">
@@ -755,8 +681,10 @@
                   <i class="fa-solid fa-sliders"></i>
                 </div>
                 <div>
-                  <h2 style="font-family: var(--font-title); font-size: 1.4rem; font-weight: 800; color: #fff;">Painel
-                    de Controle Administrativo</h2>
+                  <h2
+                    style="font-family: var(--font-title); font-size: 1.4rem; font-weight: 800; color: var(--text-primary);">
+                    Painel
+                    de controle administrativo</h2>
                   <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">Gestão de operadores,
                     parâmetros clínicos de contraste, remanejamento de salas e governança.</p>
                 </div>
@@ -766,11 +694,11 @@
             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
               <button type="button" class="btn btn--secondary" id="btnAdminSincronizarHoje"
                 title="Alinha os horários de todos os exames agendados para a data de hoje">
-                <i class="fa-solid fa-calendar-check" style="color: var(--cyan-400);"></i> Sincronizar Exames para Hoje
+                <i class="fa-solid fa-calendar-check" style="color: var(--cyan-400);"></i> Sincronizar exames para hoje
               </button>
               <button type="button" class="btn btn--secondary" id="btnAdminExportarCsv"
                 title="Exporta todos os logs de auditoria em formato CSV">
-                <i class="fa-solid fa-file-csv" style="color: var(--emerald-400);"></i> Exportar Auditoria (CSV)
+                <i class="fa-solid fa-file-csv" style="color: var(--emerald-400);"></i> Exportar auditoria (CSV)
               </button>
             </div>
           </div>
@@ -783,7 +711,7 @@
               </div>
               <div class="stat-details">
                 <span class="stat-number" id="adminStatOperadores">4</span>
-                <span class="stat-label">Operadores no Sistema</span>
+                <span class="stat-label">Operadores no sistema</span>
               </div>
             </div>
 
@@ -825,18 +753,18 @@
               <div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <span class="badge"
-                    style="background: rgba(244, 63, 94, 0.2); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); font-size: 0.72rem; font-weight: 700; text-transform: uppercase;">
+                    style="background: rgba(244, 63, 94, 0.2); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); font-size: 0.72rem; font-weight: 700;">
                     <i class="fa-solid fa-database"></i> Banco 1 (Tasy RIS/HIS)
                   </span>
                   <span class="badge" id="badgeTasyStatus"
-                    style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.72rem; font-weight: 700;">
+                    style="background: rgba(16, 185, 129, 0.2); color: var(--emerald-400); border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.72rem; font-weight: 700;">
                     <i class="fa-solid fa-circle" style="font-size: 0.5rem; vertical-align: middle;"></i> Verificando...
                   </span>
                 </div>
                 <h3
-                  style="font-family: var(--font-title); font-size: 1.25rem; font-weight: 800; color: #fff; margin-top: 6px;">
+                  style="font-family: var(--font-title); font-size: 1.25rem; font-weight: 800; color: var(--text-primary); margin-top: 6px;">
                   <i class="fa-solid fa-network-wired" style="color: var(--cyan-400); margin-right: 8px;"></i>
-                  Integração Oracle Tasy &amp; Procedimentos Internos (TI)
+                  Integração Oracle Tasy &amp; procedimentos internos (TI)
                 </h3>
                 <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">
                   Conexão ao Oracle Tasy (<code style="color: var(--cyan-300);">192.1.1.12:1521/tasytst</code>) com
@@ -847,7 +775,7 @@
               <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                 <button type="button" class="btn btn--secondary" id="btnTestarConexaoTasy"
                   style="font-size: 0.85rem; padding: 8px 14px;">
-                  <i class="fa-solid fa-plug-circle-bolt" style="color: var(--cyan-400);"></i> Testar Conexão
+                  <i class="fa-solid fa-plug-circle-bolt" style="color: var(--cyan-400);"></i> Testar conexão
                 </button>
                 <button type="button" class="btn btn--primary" id="btnAbaTasySelect"
                   style="font-size: 0.85rem; padding: 8px 14px;">
@@ -859,37 +787,29 @@
             <!-- Diagnóstico de Conexão com Tasy -->
             <div
               style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 20px;">
-              <div
-                style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px 16px;">
-                <span
-                  style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Host
-                  &amp; Serviço</span>
+              <div class="diag-stat-card">
+                <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">Host
+                  &amp; serviço</span>
                 <div id="tasyHostServico"
-                  style="margin-top: 4px; font-weight: 700; color: #fff; font-size: 0.95rem; font-family: 'JetBrains Mono', monospace;">
+                  style="margin-top: 4px; font-weight: 700; color: var(--text-primary); font-size: 0.95rem; font-family: 'JetBrains Mono', monospace;">
                   192.1.1.12:1521 / tasytst</div>
               </div>
-              <div
-                style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px 16px;">
-                <span
-                  style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Latência
-                  de Rede</span>
+              <div class="diag-stat-card">
+                <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">Latência
+                  de rede</span>
                 <div id="tasyLatencia"
                   style="margin-top: 4px; font-weight: 700; color: var(--emerald-400); font-size: 0.95rem;">-- ms</div>
               </div>
-              <div
-                style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px 16px;">
-                <span
-                  style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Versão
+              <div class="diag-stat-card">
+                <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">Versão
                   Oracle</span>
                 <div id="tasyVersaoOracle"
                   style="margin-top: 4px; font-weight: 600; color: var(--text-secondary); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                   Aguardando teste...</div>
               </div>
-              <div
-                style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px 16px;">
-                <span
-                  style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Procedimentos
-                  Ativos</span>
+              <div class="diag-stat-card">
+                <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">Procedimentos
+                  ativos</span>
                 <div id="tasyTotalProcedimentosCard"
                   style="margin-top: 4px; font-weight: 800; color: var(--cyan-400); font-size: 1.1rem;">679 na view
                 </div>
@@ -902,12 +822,12 @@
               <button type="button" class="btn btn--subtab active" id="btnSubtabTasyProcedimentos"
                 onclick="alternarSubtabTasy('procedimentos')"
                 style="background: rgba(14, 165, 233, 0.15); color: var(--cyan-400); border: 1px solid var(--cyan-500); border-radius: 6px; padding: 6px 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
-                <i class="fa-solid fa-list-check" style="margin-right: 6px;"></i> Explorador de Procedimentos
+                <i class="fa-solid fa-list-check" style="margin-right: 6px;"></i> Explorador de procedimentos
               </button>
               <button type="button" class="btn btn--subtab" id="btnSubtabTasyConsole"
                 onclick="alternarSubtabTasy('console')"
                 style="background: transparent; color: var(--text-muted); border: 1px solid transparent; border-radius: 6px; padding: 6px 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
-                <i class="fa-solid fa-terminal" style="margin-right: 6px;"></i> Console de Consultas SELECT (TI)
+                <i class="fa-solid fa-terminal" style="margin-right: 6px;"></i> Console de consultas SELECT (TI)
               </button>
             </div>
 
@@ -915,11 +835,11 @@
             <div id="tasyPainelProcedimentos">
               <!-- Filtros de Pesquisa -->
               <div
-                style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 16px; margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+                style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 16px; margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
                 <div style="flex: 2; min-width: 240px;">
                   <label class="form-label"
                     style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; display: block;">
-                    <i class="fa-solid fa-magnifying-glass"></i> Descrição do Procedimento / Exame
+                    <i class="fa-solid fa-magnifying-glass"></i> Descrição do procedimento / exame
                   </label>
                   <input type="text" id="filtroTasyBusca" class="form-input"
                     placeholder="Ex: Torax, Coluna, Axilas, Cranio, Ressonancia..." style="width: 100%;">
@@ -927,7 +847,7 @@
                 <div style="flex: 1; min-width: 150px;">
                   <label class="form-label"
                     style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; display: block;">
-                    <i class="fa-solid fa-barcode"></i> Código / Sequência
+                    <i class="fa-solid fa-barcode"></i> Código / sequência
                   </label>
                   <input type="number" id="filtroTasyCodigo" class="form-input" placeholder="Ex: 40901211"
                     style="width: 100%;">
@@ -960,7 +880,7 @@
               <div
                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.82rem; color: var(--text-muted); flex-wrap: wrap; gap: 8px;">
                 <span id="tasyContadorResultados">Carregando procedimentos do Oracle Tasy...</span>
-                <span>View Oficial: <strong
+                <span>View oficial: <strong
                     style="color: var(--cyan-300);">TASY.IMI_EXAMES_PROC_INTERNO_V</strong></span>
               </div>
 
@@ -970,9 +890,9 @@
                   <thead>
                     <tr>
                       <th style="width: 90px;">Sequência</th>
-                      <th style="width: 130px;">Código Procedimento</th>
+                      <th style="width: 130px;">Código do procedimento</th>
                       <th style="width: 110px;">Modalidade</th>
-                      <th>Descrição Oficial do Procedimento no Tasy</th>
+                      <th>Descrição oficial do procedimento no Tasy</th>
                       <th style="width: 120px; text-align: right;">Ações</th>
                     </tr>
                   </thead>
@@ -991,15 +911,14 @@
               <div style="margin-bottom: 12px;">
                 <div
                   style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
-                  <label
-                    style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">
+                  <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);">
                     <i class="fa-solid fa-terminal" style="color: var(--cyan-400);"></i> Consulta SQL SELECT (Oracle
                     19c)
                   </label>
                   <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                     <button type="button" class="btn btn--secondary" onclick="tasyCarregarPresetSql(1)"
                       style="font-size: 0.75rem; padding: 4px 10px;">
-                      Top 20 Procedimentos
+                      Top 20 procedimentos
                     </button>
                     <button type="button" class="btn btn--secondary" onclick="tasyCarregarPresetSql(2)"
                       style="font-size: 0.75rem; padding: 4px 10px;">
@@ -1011,7 +930,7 @@
                     </button>
                     <button type="button" class="btn btn--secondary" onclick="tasyCarregarPresetSql(4)"
                       style="font-size: 0.75rem; padding: 4px 10px;">
-                      Colunas da View
+                      Colunas da view
                     </button>
                   </div>
                 </div>
@@ -1028,7 +947,7 @@
                 </span>
                 <button type="button" class="btn btn--primary" id="btnExecutarSqlTasy"
                   style="padding: 8px 20px; font-size: 0.88rem;">
-                  <i class="fa-solid fa-play"></i> Executar Consulta
+                  <i class="fa-solid fa-play"></i> Executar consulta
                 </button>
               </div>
 
@@ -1054,9 +973,9 @@
             <div
               style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
               <div>
-                <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">
+                <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: var(--text-primary);">
                   <i class="fa-solid fa-id-card-clip" style="color: var(--cyan-400); margin-right: 8px;"></i> Operadores
-                  &amp; Perfis de Acesso
+                  &amp; perfis de acesso
                 </h3>
                 <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">
                   Biomédicos, Técnicos de RM e Estagiários compartilham as mesmas permissões clínicas (abrir ficha,
@@ -1069,12 +988,12 @@
               <table class="worklist-table">
                 <thead>
                   <tr>
-                    <th>Nome do Operador</th>
+                    <th>Nome do operador</th>
                     <th>Login</th>
-                    <th>Perfil Clínico</th>
+                    <th>Perfil clínico</th>
                     <th>Status</th>
-                    <th>Cadastrado Em</th>
-                    <th style="text-align: right;">Ações Administrativas</th>
+                    <th>Cadastrado em</th>
+                    <th style="text-align: right;">Ações administrativas</th>
                   </tr>
                 </thead>
                 <tbody id="adminUsuariosTableBody">
@@ -1089,9 +1008,9 @@
             <div
               style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
               <div>
-                <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">
+                <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: var(--text-primary);">
                   <i class="fa-solid fa-hospital" style="color: var(--cyan-400); margin-right: 8px;"></i> Remanejamento
-                  de Salas &amp; Controle da Grade
+                  de salas &amp; controle da grade
                 </h3>
                 <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">
                   Gerencie agendamentos, edite/exclua pacientes da grade ou cadastre novos exames para testes clínicos.
@@ -1099,7 +1018,7 @@
               </div>
               <button type="button" class="btn btn--primary" style="font-size: 0.85rem; padding: 7px 16px;"
                 onclick="adminAbrirModalNovoExame()">
-                <i class="fa-solid fa-calendar-plus" style="margin-right: 6px;"></i> + Novo Agendamento de Exame
+                <i class="fa-solid fa-calendar-plus" style="margin-right: 6px;"></i> + Novo agendamento de exame
               </button>
             </div>
 
@@ -1111,9 +1030,9 @@
                     <th>Paciente</th>
                     <th>Modalidade</th>
                     <th>Procedimento</th>
-                    <th>Sala Atual</th>
+                    <th>Sala atual</th>
                     <th>Status</th>
-                    <th style="text-align: right;">Ações do Administrador</th>
+                    <th style="text-align: right;">Ações do administrador</th>
                   </tr>
                 </thead>
                 <tbody id="adminExamesTableBody">
@@ -1126,9 +1045,9 @@
           <!-- Seção 3: Parâmetros Clínicos e Limites de Contraste -->
           <div class="glass-panel" style="padding: 24px;">
             <div style="margin-bottom: 18px;">
-              <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">
+              <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: var(--text-primary);">
                 <i class="fa-solid fa-sliders" style="color: var(--cyan-400); margin-right: 8px;"></i> Parâmetros
-                Clínicos &amp; Tetos Institucionais
+                clínicos &amp; tetos institucionais
               </h3>
               <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">
                 Configure limites institucionais baseados nas diretrizes do CBR/ACR para cálculo automatizado de dose de
@@ -1141,42 +1060,42 @@
                 style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 20px;">
                 <div class="form-field">
                   <label class="form-label" for="cfgIodoProporcao">
-                    <i class="fa-solid fa-vial"></i> Proporção Contraste Iodado TC (mL/kg)
+                    <i class="fa-solid fa-vial"></i> Proporção contraste iodado TC (mL/kg)
                   </label>
                   <input type="number" step="0.1" id="cfgIodoProporcao" class="form-input" value="1.5">
                 </div>
 
                 <div class="form-field">
                   <label class="form-label" for="cfgIodoTeto">
-                    <i class="fa-solid fa-shield"></i> Teto Máximo Contraste Iodado (mL)
+                    <i class="fa-solid fa-shield"></i> Teto máximo contraste iodado (mL)
                   </label>
                   <input type="number" step="5" id="cfgIodoTeto" class="form-input" value="150">
                 </div>
 
                 <div class="form-field">
                   <label class="form-label" for="cfgGadoProporcao">
-                    <i class="fa-solid fa-magnet"></i> Proporção Gadolínio RM (mL/kg)
+                    <i class="fa-solid fa-magnet"></i> Proporção gadolínio RM (mL/kg)
                   </label>
                   <input type="number" step="0.05" id="cfgGadoProporcao" class="form-input" value="0.2">
                 </div>
 
                 <div class="form-field">
                   <label class="form-label" for="cfgGadoTeto">
-                    <i class="fa-solid fa-shield"></i> Teto Máximo Gadolínio (mL)
+                    <i class="fa-solid fa-shield"></i> Teto máximo gadolínio (mL)
                   </label>
                   <input type="number" step="1" id="cfgGadoTeto" class="form-input" value="25">
                 </div>
 
                 <div class="form-field">
                   <label class="form-label" for="cfgCreatininaAlerta">
-                    <i class="fa-solid fa-triangle-exclamation"></i> Limite Alerta Creatinina (mg/dL)
+                    <i class="fa-solid fa-triangle-exclamation"></i> Limite alerta creatinina (mg/dL)
                   </label>
                   <input type="number" step="0.1" id="cfgCreatininaAlerta" class="form-input" value="1.5">
                 </div>
 
                 <div class="form-field">
                   <label class="form-label" for="cfgJejumHoras">
-                    <i class="fa-solid fa-clock"></i> Jejum Mínimo Recomendado (horas)
+                    <i class="fa-solid fa-clock"></i> Jejum mínimo recomendado (horas)
                   </label>
                   <input type="number" step="1" id="cfgJejumHoras" class="form-input" value="4">
                 </div>
@@ -1184,7 +1103,7 @@
 
               <div style="display: flex; justify-content: flex-end; gap: 12px;">
                 <button type="submit" class="btn btn--primary" id="btnSalvarParametrosAdmin">
-                  <i class="fa-solid fa-floppy-disk"></i> Salvar Parâmetros Institucionais
+                  <i class="fa-solid fa-floppy-disk"></i> Salvar parâmetros institucionais
                 </button>
               </div>
             </form>
@@ -1193,11 +1112,11 @@
           <!-- Seção 4: Dicionário de Protocolos & Regras Clínicas Individuais -->
           <div class="glass-panel" style="padding: 24px; margin-top: 20px;">
             <div
-              style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+              style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: gap: 12px;">
               <div>
-                <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: #fff;">
+                <h3 style="font-family: var(--font-title); font-size: 1.15rem; color: var(--text-primary);">
                   <i class="fa-solid fa-book-medical" style="color: var(--cyan-400); margin-right: 8px;"></i> Dicionário
-                  de Protocolos &amp; Regras Clínicas Individuais
+                  de protocolos &amp; regras clínicas individuais
                 </h3>
                 <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">
                   Inspecione como as regras e perguntas de cada protocolo anatômico são avaliadas pelo Semáforo Clínico
@@ -1205,28 +1124,25 @@
                 </p>
               </div>
 
-              <!-- Seletor de Protocolo Customizado (Fundo Escuro e Bordas Arredondadas) -->
+              <!-- Seletor de Protocolo Customizado -->
               <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                 <button type="button" class="btn btn--primary" id="btnAdminNovoProtocolo"
                   onclick="adminAbrirModalNovoProtocolo()"
                   style="font-size: 0.85rem; padding: 8px 14px; white-space: nowrap;">
-                  <i class="fa-solid fa-folder-plus" style="margin-right: 6px;"></i> + Novo Protocolo Anatômico
+                  <i class="fa-solid fa-folder-plus" style="margin-right: 6px;"></i> + Novo protocolo anatômico
                 </button>
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">
                     Protocolo:
                   </label>
-                  <div class="custom-select-container" id="customSelectProtocolo"
-                    style="position: relative; display: inline-block; min-width: 320px;">
-                    <div class="custom-select-trigger" id="customSelectTrigger" tabindex="0"
-                      style="display: flex; align-items: center; justify-content: space-between; gap: 12px; background-color: var(--bg-input, #0b101a); color: #fff; border: 1px solid var(--cyan-500, #0ea5e9); border-radius: 8px; padding: 9px 14px; font-weight: 600; cursor: pointer; user-select: none;">
+                  <div class="custom-select-container" id="customSelectProtocolo">
+                    <div class="custom-select-trigger" id="customSelectTrigger" tabindex="0">
                       <span id="customSelectLabel"><i class="fa-solid fa-bone"
                           style="color: var(--purple-400); margin-right: 8px;"></i> RM Coluna (Cervical / Torácica /
                         Lombar)</span>
                       <i class="fa-solid fa-chevron-down chevron-icon"></i>
                     </div>
-                    <div class="custom-select-menu" id="customSelectMenu"
-                      style="display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; background-color: #0d1424; border: 1px solid var(--cyan-500, #0ea5e9); border-radius: 8px; box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7), 0 0 20px rgba(14, 165, 233, 0.25); padding: 6px; z-index: 9999; backdrop-filter: blur(14px);">
+                    <div class="custom-select-menu" id="customSelectMenu">
                       <div class="custom-select-option is-selected" data-value="RM_COLUNA">
                         <span><i class="fa-solid fa-bone" style="margin-right: 8px; color: var(--purple-400);"></i> RM
                           Coluna (Cervical / Torácica / Lombar)</span>
@@ -1271,17 +1187,17 @@
             <div
               style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
               <div
-                style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;">
+                style="background: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <span
-                    style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Modalidade
-                    de Exame</span>
+                  <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Modalidade
+                    de exame</span>
                   <div id="protocoloModalidadeBadge"
-                    style="margin-top: 4px; font-weight: 700; color: #fff; font-size: 1rem;">Ressonância Magnética (RM)
+                    style="margin-top: 4px; font-weight: 700; color: var(--text-primary); font-size: 1rem;">Ressonância
+                    Magnética (RM)
                   </div>
                 </div>
                 <button type="button" id="btnExcluirProtocoloCustom" class="btn btn--secondary hidden"
-                  style="font-size: 0.75rem; padding: 4px 8px; border-color: rgba(239, 68, 68, 0.4); color: #f87171;"
+                  style="font-size: 0.75rem; padding: 4px 8px; border-color: rgba(239, 68, 68, 0.4); color: var(--coral-400);"
                   onclick="adminExcluirProtocoloCustomizado()" title="Excluir este protocolo personalizado">
                   <i class="fa-solid fa-trash-can"></i>
                 </button>
@@ -1289,31 +1205,28 @@
 
               <div
                 style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-sm); padding: 12px 16px;">
-                <span
-                  style="font-size: 0.75rem; text-transform: uppercase; color: var(--rose-400); font-weight: 700;">🔴
-                  Contraindicações Absolutas</span>
+                <span style="font-size: 0.75rem; color: var(--rose-400); font-weight: 700;">🔴
+                  Contraindicações absolutas</span>
                 <div id="protocoloTotalImpeditivas"
-                  style="margin-top: 4px; font-weight: 700; color: var(--rose-400); font-size: 1.1rem;">3 Perguntas
+                  style="margin-top: 4px; font-weight: 700; color: var(--rose-400); font-size: 1.1rem;">3 perguntas
                 </div>
               </div>
 
               <div
                 style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: var(--radius-sm); padding: 12px 16px;">
-                <span
-                  style="font-size: 0.75rem; text-transform: uppercase; color: var(--amber-400); font-weight: 700;">🟡
-                  Alertas Operacionais</span>
+                <span style="font-size: 0.75rem; color: var(--amber-400); font-weight: 700;">🟡
+                  Alertas operacionais</span>
                 <div id="protocoloTotalAlertas"
-                  style="margin-top: 4px; font-weight: 700; color: var(--amber-400); font-size: 1.1rem;">1 Pergunta
+                  style="margin-top: 4px; font-weight: 700; color: var(--amber-400); font-size: 1.1rem;">1 pergunta
                 </div>
               </div>
 
               <div
                 style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-sm); padding: 12px 16px;">
-                <span
-                  style="font-size: 0.75rem; text-transform: uppercase; color: var(--emerald-400); font-weight: 700;">🟢
-                  Critérios Informativos</span>
+                <span style="font-size: 0.75rem; color: var(--emerald-400); font-weight: 700;">🟢
+                  Critérios informativos</span>
                 <div id="protocoloTotalInformativas"
-                  style="margin-top: 4px; font-weight: 700; color: var(--emerald-400); font-size: 1.1rem;">6 Perguntas
+                  style="margin-top: 4px; font-weight: 700; color: var(--emerald-400); font-size: 1.1rem;">6 perguntas
                 </div>
               </div>
             </div>
@@ -1322,45 +1235,43 @@
             <div
               style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 20px;">
               <!-- Card: Procedimentos do Catálogo Associados ao Formulário -->
-              <div
-                style="background: rgba(14, 20, 32, 0.65); border: 1px solid var(--bg-card-border); border-radius: var(--radius-sm); padding: 16px;">
+              <div class="protocol-subpanel">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                  <span style="font-size: 0.88rem; font-weight: 700; color: #fff;">
-                    <i class="fa-solid fa-list-check" style="color: var(--cyan-400); margin-right: 6px;"></i>
-                    Procedimentos do Catálogo Integrados
+                  <span style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">
+                    <i class="fa-solid fa-database" style="color: var(--amber-400); margin-right: 6px;"></i>
+                    Procedimentos do Tasy integrados
                   </span>
                   <span id="badgeQtdProcedimentos" class="badge-status status-liberado" style="font-size: 0.75rem;">0
-                    Procedimentos</span>
+                    procedimentos</span>
                 </div>
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
-                  Exames e pedidos médicos (RIS/HIS/TUSS) que ativam automaticamente este formulário de triagem:
+                  Exames sincronizados diretamente da base oficial do Tasy que ativam automaticamente este formulário:
                 </p>
                 <div id="listaProcedimentosIntegrados"
                   style="display: flex; flex-direction: column; gap: 8px; max-height: 190px; overflow-y: auto; padding-right: 4px;">
                   <!-- Carregado dinamicamente -->
                 </div>
                 <div
-                  style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center;">
+                  style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
                   <span style="font-size: 0.78rem; color: var(--text-secondary);">
-                    <i class="fa-solid fa-sliders"></i> Mapeamento De-Para
+                    <i class="fa-solid fa-rotate" style="color: var(--cyan-400);"></i> Sincronismo direto Tasy
                   </span>
-                  <button type="button" class="btn btn--secondary" style="padding: 4px 10px; font-size: 0.78rem;"
+                  <button type="button" class="btn btn--secondary" style="padding: 4px 10px; font-size: 0.78rem; border-color: rgba(56, 189, 248, 0.4); color: var(--cyan-400);"
                     onclick="adminAbrirVincularProcedimento()">
-                    <i class="fa-solid fa-plus"></i> Associar Novo Exame
+                    <i class="fa-solid fa-magnifying-glass-plus"></i> Associar exame do Tasy
                   </button>
                 </div>
               </div>
 
               <!-- Card: Exames Ativos na Worklist com este Formulário -->
-              <div
-                style="background: rgba(14, 20, 32, 0.65); border: 1px solid var(--bg-card-border); border-radius: var(--radius-sm); padding: 16px;">
+              <div class="protocol-subpanel">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                  <span style="font-size: 0.88rem; font-weight: 700; color: #fff;">
+                  <span style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">
                     <i class="fa-solid fa-user-clock" style="color: var(--amber-400); margin-right: 6px;"></i> Pacientes
-                    na Fila Atual com este Protocolo
+                    na fila atual com este protocolo
                   </span>
                   <span id="badgeQtdWorklistProtocolo" class="badge-status status-aguardando"
-                    style="font-size: 0.75rem;">0 na Fila</span>
+                    style="font-size: 0.75rem;">0 na fila</span>
                 </div>
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
                   Exames da grade operacional de hoje que estão utilizando este questionário:
@@ -1379,10 +1290,10 @@
                   <tr>
                     <th style="width: 50px; text-align: center;">#</th>
                     <th style="width: 150px;">Código</th>
-                    <th>Enunciado da Pergunta (Ordem de Apresentação)</th>
+                    <th>Enunciado da pergunta (ordem de apresentação)</th>
                     <th style="width: 140px;">Classificação</th>
-                    <th style="width: 230px;">Comportamento no Sistema</th>
-                    <th>Fundamento Clínico / Radiológico</th>
+                    <th style="width: 230px;">Comportamento no sistema</th>
+                    <th>Fundamento clínico / radiológico</th>
                   </tr>
                 </thead>
                 <tbody id="adminProtocoloRegrasTableBody">
@@ -1397,7 +1308,8 @@
               <i class="fa-solid fa-shield-halved"
                 style="color: var(--cyan-400); font-size: 1.2rem; margin-top: 2px;"></i>
               <div style="font-size: 0.85rem; line-height: 1.45; color: var(--text-secondary);">
-                <strong style="color: #fff;">Diretriz Arquitetural Médica (Por que as regras são garantidas no
+                <strong style="color: var(--text-primary);">Diretriz arquitetural médica (Por que as regras são
+                  garantidas no
                   código?):</strong><br>
                 Na engenharia clínica e normas do CBR/ACR, contraindicações de vida ou morte (marcapasso em RM, clipes
                 ferromagnéticos, histórico de choque anafilático ao iodo) <strong>devem ser invioláveis no código de
@@ -1414,8 +1326,8 @@
   </div>
 
   <!-- Scripts da Aplicação (Cliente HTTP API & Ergonomia) -->
-  <script src="js/api.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/api.js?v=20261103_02"></script>
+  <script src="js/app.js?v=20261103_02"></script>
 </body>
 
 </html>

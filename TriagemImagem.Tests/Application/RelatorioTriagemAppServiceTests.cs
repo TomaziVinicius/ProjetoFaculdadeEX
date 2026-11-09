@@ -1,3 +1,4 @@
+using TriagemImagem.Application.Interfaces;
 using TriagemImagem.Application.Services;
 using TriagemImagem.Domain.Entities;
 using TriagemImagem.Domain.Enums;
@@ -8,6 +9,18 @@ namespace TriagemImagem.Tests.Application;
 
 public class RelatorioTriagemAppServiceTests
 {
+    private class FakeFileStorageService : IFileStorageService
+    {
+        public async Task<string> SalvarArquivoAsync(string nomeArquivo, string conteudoHtml)
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), "triagem_tests");
+            Directory.CreateDirectory(tempDir);
+            var caminho = Path.Combine(tempDir, nomeArquivo);
+            await File.WriteAllTextAsync(caminho, conteudoHtml);
+            return caminho;
+        }
+    }
+
     [Theory]
     [InlineData("RM_COLUNA", "QUESTIONÁRIO PARA RESSONÂNCIA DA COLUNA")]
     [InlineData("RM_BRACO_ANTEBRACO", "QUESTIONÁRIO PARA RESSONÂNCIA DE BRAÇO/ANTEBRAÇO")]
@@ -16,7 +29,7 @@ public class RelatorioTriagemAppServiceTests
     public async Task GerarEArmazenarRelatorio_DeveGerarArquivoHtmlComCabecalhoCorreto(string tipoFormulario, string tituloEsperado)
     {
         // Arrange
-        var service = new RelatorioTriagemAppService();
+        var service = new RelatorioTriagemAppService(new FakeFileStorageService());
         var paciente = new Paciente
         {
             Id = 1,

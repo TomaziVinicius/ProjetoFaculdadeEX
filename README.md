@@ -31,10 +31,10 @@ Esta solução atende às seguintes necessidades clínicas e operacionais:
    - **🔴 VERMELHO (Bloqueio Absoluto)**: Presença de itens impeditivos de segurança clínica (marcapasso em RM, clipes ferromagnéticos, alergia prévia grave a iodo). O sistema bloqueia o exame no banco e impede a liberação.
 4. **Calculadora de Dosagem de Meio de Contraste**:
    - Cálculo automático por peso corpóreo (TC: 1.5 mL/kg, teto 150 mL; RM: 0.2 mL/kg, teto 25 mL) com registro obrigatório de lote para rastreabilidade ANVISA.
-5. **Arquivamento Digital Automático em Documentos**:
+5. **Arquivamento Digital Automático no Servidor de Rede**:
    - Ao finalizar a triagem, o sistema compila uma ficha clínica oficial timbrada em HTML com cabeçalho institucional, dados demográficos, respostas do questionário, resultado do semáforo, lote do contraste e assinatura do operador.
-   - O documento é salvo automaticamente na pasta física do sistema operacional:
-     `C:\Users\<usuario>\Documents\TriagensDiagnosticoImagem\`
+   - O documento é salvo automaticamente no compartilhamento de rede institucional:
+     `\\fsa\anexos\IMI\Anexos_Formularios_PROJ\`
    - O caminho físico completo é persistido na coluna `caminho_arquivo_armazenado` no banco de dados e registrado na trilha de auditoria.
 6. **Gestão Dinâmica de Protocolos Anatômicos & Inteligência TUSS/RIS em Tempo Real**:
    - **Criação e Expansão Visual**: Administradores podem criar novos protocolos clínicos diretamente no painel (ex: `RM_CRANIO`, `TC_FACE`) definindo perguntas especializadas, criticidade de semáforo e regras impeditivas.
@@ -282,12 +282,12 @@ Para maximizar a produtividade do operador no posto clínico:
 * Respostas a itens impeditivos (ex: *Marcapasso cardíaco*, *Clipes de aneurisma ferromagnéticos* ou *Choque alérgico prévio a iodo*) acionam imediatamente o **Semáforo Vermelho de Bloqueio Absoluto**.
 * Nesses casos, o botão de liberação é bloqueado, garantindo conformidade com a segurança do paciente.
 
-### 6. Finalização e Arquivamento em Documentos
+### 6. Finalização e Arquivamento em Rede
 * Ao clicar em **"Liberar Exame com Segurança"**:
   1. A triagem é persistida no Banco de Dados 1;
   2. O status do exame é atualizado para `LIBERADO`;
   3. A ficha clínica timbrada oficial é compilada e gravada em:
-     `C:\Users\<usuario>\Documents\TriagensDiagnosticoImagem\`
+     `\\fsa\anexos\IMI\Anexos_Formularios_PROJ\`
   4. Um modal de confirmação exibe o caminho exato gravado em disco com a opção de **Imprimir Laudo**.
 
 ### 7. Gestão Dinâmica de Protocolos Anatômicos & Inteligência TUSS/RIS em Tempo Real

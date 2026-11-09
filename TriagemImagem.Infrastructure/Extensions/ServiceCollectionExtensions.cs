@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using TriagemImagem.Application.Interfaces;
 using TriagemImagem.Domain.Repositories;
 using TriagemImagem.Domain.Services;
 using TriagemImagem.Infrastructure.Repositories;
@@ -26,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISemaforoClinicoDomainService, SemaforoClinicoDomainService>();
         services.AddScoped<ILdapService, LdapService>();
         services.AddScoped<ITasyService, TasyService>();
+        services.AddScoped<IFileStorageService, FileStorageService>();
 
         return services;
     }

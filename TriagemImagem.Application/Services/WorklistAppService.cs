@@ -60,13 +60,9 @@ public class WorklistAppService : IWorklistAppService
         }
         else
         {
-            // Sem data especificada: primeiro busca os exames de hoje
-            exames = await _exameRepository.ListarDoDiaAsync(DateTime.Today, filtro.Modalidade, filtro.Status);
-            // Se hoje não houver registros (demonstração, virada de dia), traz todos da fila para não sumir
-            if (!exames.Any())
-            {
-                exames = await _exameRepository.ListarTodosAsync(filtro.Modalidade, filtro.Status);
-            }
+            // Sem data especificada: retorna todos os exames cadastrados e importados (mais recentes primeiro)
+            var todos = await _exameRepository.ListarTodosAsync(filtro.Modalidade, filtro.Status);
+            exames = todos.Take(100);
         }
 
         var resultado = new List<ExameWorklistDto>();
@@ -145,6 +141,7 @@ public class WorklistAppService : IWorklistAppService
         {
             Id = exame.Id,
             Atendimento = exame.Atendimento,
+            SequenciaProcedimentoInterno = exame.SequenciaInterna,
             PacienteId = exame.PacienteId,
             PacienteNome = exame.Paciente.NomeCompleto,
             PacienteCpf = exame.Paciente.DocumentoCpf,
@@ -166,7 +163,8 @@ public class WorklistAppService : IWorklistAppService
             Status = exame.Status,
             PossuiTriagem = triagem != null,
             StatusRiscoSemaforo = triagem?.StatusRisco,
-            VolumeContrasteMl = triagem?.VolumeContrasteMl
+            VolumeContrasteMl = triagem?.VolumeContrasteMl,
+            CaminhoArquivoArmazenado = triagem?.CaminhoArquivoArmazenado
         };
     }
 }

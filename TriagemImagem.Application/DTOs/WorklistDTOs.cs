@@ -30,9 +30,12 @@ public class ExameWorklistDto
     public string StatusDescricao => Status.ToString();
 
     // Dados resumidos da triagem caso já iniciada ou realizada
+    public int? SequenciaProcedimentoInterno { get; set; }
+    public int? NrSeqProcInterno => SequenciaProcedimentoInterno;
     public bool PossuiTriagem { get; set; }
     public StatusRiscoSemaforo? StatusRiscoSemaforo { get; set; }
     public decimal? VolumeContrasteMl { get; set; }
+    public string? CaminhoArquivoArmazenado { get; set; }
 }
 
 public class FiltroWorklistDto

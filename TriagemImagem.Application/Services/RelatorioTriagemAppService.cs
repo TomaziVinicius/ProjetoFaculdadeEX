@@ -8,23 +8,20 @@ namespace TriagemImagem.Application.Services;
 
 public class RelatorioTriagemAppService : IRelatorioTriagemAppService
 {
+    private readonly IFileStorageService _fileStorageService;
+
+    public RelatorioTriagemAppService(IFileStorageService fileStorageService)
+    {
+        _fileStorageService = fileStorageService;
+    }
+
     public async Task<string> GerarEArmazenarRelatorioAsync(
         Exame exame, 
         FormularioTriagem formulario, 
         ResultadoSemaforoClinico avaliacao, 
         string nomeUsuario)
     {
-        // 1. Determina o diretório de destino na pasta Documentos do usuário
-        var pastaDocumentos = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "TriagensDiagnosticoImagem");
-
-        if (!Directory.Exists(pastaDocumentos))
-        {
-            Directory.CreateDirectory(pastaDocumentos);
-        }
-
-        // 2. Determina o título específico com base no tipo de questionário da folha real
+        // 1. Determina o título específico com base no tipo de questionário da folha real
         var tipoForm = exame.TipoFormulario ?? (exame.Modalidade == ModalidadeExame.RM ? "RM_COLUNA" : "TC_TORAX");
         var tituloQuestionario = tipoForm switch
         {
@@ -197,7 +194,7 @@ public class RelatorioTriagemAppService : IRelatorioTriagemAppService
         // Rodapé com Assinatura e Carimbo
         sb.AppendLine("    <div class=\"footer-signature\">");
         sb.AppendLine("      <div>");
-        sb.AppendLine($"        <div style=\"font-size: 11px; color: #64748b;\">Arquivo Clínico Armazenado em Documentos</div>");
+        sb.AppendLine($"        <div style=\"font-size: 11px; color: #64748b;\">Arquivo Clínico Armazenado no Servidor de Rede</div>");
         sb.AppendLine($"        <div style=\"font-family: monospace; font-size: 10px; color: #475569;\">ID Transação: {Guid.NewGuid():D}</div>");
         sb.AppendLine("      </div>");
         sb.AppendLine("      <div class=\"sign-box\">");
@@ -211,12 +208,10 @@ public class RelatorioTriagemAppService : IRelatorioTriagemAppService
         sb.AppendLine("</body>");
         sb.AppendLine("</html>");
 
-        // 4. Salva o arquivo no disco do usuário
+        // 4. Salva o arquivo no diretório de rede configurado (\\fsa\anexos\IMI\Anexos_Formularios_PROJ)
         var nomeArquivo = $"Ficha_Triagem_{exame.Atendimento}_{tipoForm}_{DateTime.Now:yyyyMMdd_HHmmss}.html";
-        var caminhoCompleto = Path.Combine(pastaDocumentos, nomeArquivo);
+        var caminhoArmazenado = await _fileStorageService.SalvarArquivoAsync(nomeArquivo, sb.ToString());
 
-        await File.WriteAllTextAsync(caminhoCompleto, sb.ToString(), Encoding.UTF8);
-
-        return caminhoCompleto;
+        return caminhoArmazenado;
     }
 }

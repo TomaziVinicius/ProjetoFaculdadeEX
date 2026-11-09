@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using TriagemImagem.Domain.Configurations;
 using TriagemImagem.Domain.Services;
 using TriagemImagem.Infrastructure.Data.Context;
 
@@ -13,15 +15,18 @@ public class DatabaseHealthController : ControllerBase
     private readonly AppDbContext _context;
     private readonly WorklistLabDbContext _contextLab;
     private readonly ITasyService _tasyService;
+    private readonly StorageSettings _storageSettings;
 
     public DatabaseHealthController(
         AppDbContext context,
         WorklistLabDbContext contextLab,
-        ITasyService tasyService)
+        ITasyService tasyService,
+        IOptions<StorageSettings> storageOptions)
     {
         _context = context;
         _contextLab = contextLab;
         _tasyService = tasyService;
+        _storageSettings = storageOptions.Value ?? new StorageSettings();
     }
 
     /// <summary>
@@ -90,7 +95,7 @@ public class DatabaseHealthController : ControllerBase
                     formulariosDisponiveis = tiposFormularios
                 },
                 banco_tasy_oracle = tasyStatus,
-                pastaDocumentos = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "TriagensDiagnosticoImagem"),
+                pastaDocumentos = _storageSettings.DiretorioAnexos,
                 horarioServidor = DateTime.UtcNow
             });
         }

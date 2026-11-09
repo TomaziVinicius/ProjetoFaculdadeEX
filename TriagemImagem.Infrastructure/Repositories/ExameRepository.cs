@@ -65,7 +65,7 @@ public class ExameRepository : IExameRepository
         }
 
         return await query
-            .OrderBy(e => e.HorarioAgendado)
+            .OrderByDescending(e => e.Id)
             .ToListAsync();
     }
 

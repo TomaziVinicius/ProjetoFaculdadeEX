@@ -225,6 +225,13 @@ const ApiClient = {
     return await this.request('/tasy/workstation');
   },
 
+  async importarExameTasy(dados) {
+    return await this.request('/tasy/importar-exame', {
+      method: 'POST',
+      body: JSON.stringify(dados)
+    });
+  },
+
   async executarQueryTasy(query, limite = 100) {
     return await this.request('/tasy/query', {
       method: 'POST',

@@ -85,6 +85,7 @@ builder.Services.AddCors(options =>
 // 4. Registro de Configurações, Repositórios e Serviços de Domínio e Aplicação
 builder.Services.Configure<LdapSettings>(builder.Configuration.GetSection(LdapSettings.SectionName));
 builder.Services.Configure<TasySettings>(builder.Configuration.GetSection(TasySettings.SectionName));
+builder.Services.Configure<StorageSettings>(builder.Configuration.GetSection(StorageSettings.SectionName));
 builder.Services.AddInfrastructureRepositories();
 builder.Services.AddApplicationServices();
 
