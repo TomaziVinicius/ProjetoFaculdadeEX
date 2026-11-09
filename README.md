@@ -1,301 +1,341 @@
-# 🏥 Sistema de Triagem para Diagnóstico por Imagem (TC & RM)
+# 🏥 Sistema de Triagem Clínica para Diagnóstico por Imagem (TC & RM)
 
 ![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)
 ![C# 12](https://img.shields.io/badge/C%23-12.0-239120?logo=csharp&logoColor=white)
-![Architecture](https://img.shields.io/badge/Architecture-Onion%20Architecture-blue)
-![Database](https://img.shields.io/badge/Database-MySQL%20%7C%20SQLite%20(Auto--Detect)-00758F?logo=mysql&logoColor=white)
-![Tests](https://img.shields.io/badge/Tests-58%20Passed-brightgreen)
+![Architecture](https://img.shields.io/badge/Architecture-Onion%20%2F%20Clean-blue)
+![Database](https://img.shields.io/badge/Database-MySQL%20%7C%20Oracle%20Tasy%2019c%20%7C%20SQLite-00758F?logo=mysql&logoColor=white)
+![Auth](https://img.shields.io/badge/Auth-Active%20Directory%20LDAP%20%2B%20BCrypt-purple)
+![Tests](https://img.shields.io/badge/Tests-60%2B%20Passed-brightgreen)
 ![Swagger](https://img.shields.io/badge/API%20Docs-Swagger%20OpenAPI-85EA2D?logo=swagger&logoColor=black)
 
-Aplicação web e API RESTful corporativa desenvolvida para o **Posto de Triagem Clínica em Serviços de Diagnóstico por Imagem**. O sistema automatiza a recepção e avaliação de segurança de pacientes agendados para **Tomografia Computadorizada (TC)** e **Ressonância Magnética (RM)**, aplicando protocolos de segurança baseados no modelo de **Checklist da Aviação** (Semáforo Clínico Verde, Amarelo e Vermelho) e diretrizes do CBR/ACR.
+Plataforma corporativa Web (SPA) e API RESTful em **.NET 8** desenvolvida para o **Posto de Triagem Clínica em Serviços de Diagnóstico por Imagem**. O sistema automatiza e blinda a recepção e avaliação de segurança de pacientes agendados para **Tomografia Computadorizada (TC)** e **Ressonância Magnética (RM)**, integrando-se em tempo real ao **ERP Hospitalar Oracle Tasy**, ao **Active Directory (LDAP)** e ao **Servidor de Arquivos em Rede (SMB)**, aplicando protocolos clínicos baseados no **Checklist da Aviação (Semáforo Clínico Verde, Amarelo e Vermelho)** e diretrizes do CBR/ACR.
 
 ---
 
-## 1. 📋 Descrição da Solução
+## 1. 🎯 O Problema e a Solução
 
-Em centros de diagnóstico por imagem, incidentes como a entrada de pacientes portadores de marcapasso em salas de RM ou a administração de contraste iodado em pacientes nefropatas representam riscos severos à integridade do paciente. 
+Em centros de diagnóstico por imagem, a realização de anamnese pré-exame em fichas de papel expõe o serviço a falhas graves: entrada acidental de portadores de marcapasso cardíaco ou clipes de aneurisma em salas de RM, erro de cálculo manual de contraste iodado/gadolínio, divergência cadastral com o sistema hospitalar e extravio de fichas físicas.
 
-Esta solução atende às seguintes necessidades clínicas e operacionais:
+### Principais Funcionalidades Desenvolvidas:
 
-1. **Consumo de Worklist Hospitalar (Conceito HIS/RIS - DICOM Modality Worklist)**:
-   - Elimina retrabalho de cadastro e erros de digitação ao consumir os pedidos agendados diretamente do sistema do laboratório/hospital.
-2. **Questionários Clínicos Especializados por Região Anatômica**:
-   - O sistema reconhece o procedimento solicitado e carrega dinamicamente o formulário clínico correspondente (referenciado nas fichas do Instituto de Diagnóstico por Imagem):
-     * **RM de Coluna (Cervical / Torácica / Lombar)**: Segmento examinado, irradiação de dor para membros, histórico cirúrgico com placas/parafusos, osteoporose e semáforo da aviação.
-     * **RM de Braço / Antebraço (Membro Superior)**: Lado examinado (Direito/Esquerdo), prática de esportes/esforço repetitivo, suspeita de ruptura tendínea e histórico de cirurgias.
-     * **RM de Bacia / Quadril (Articulações Coxofemorais)**: Lado, uso contínuo de corticosteroides (rastreamento de osteonecrose da cabeça femoral), histórico de doença na infância (Perthes/displasia) e lesão labral.
-     * **TC de Tórax e Abdômen**: Rastreamento de nefropatia induzida por contraste, uso de metformina, jejum e gravidez.
-3. **Avaliação Automatizada por Semáforo de Risco Clínico**:
-   - **🟢 VERDE (Liberado)**: Ausência de contraindicações. Exame apto para execução imediata.
-   - **🟡 AMARELO (Atenção / Protocolo Especial)**: Fatores que requerem ajuste (ex: metformina, profilaxia alérgica ou claustrofobia leve).
-   - **🔴 VERMELHO (Bloqueio Absoluto)**: Presença de itens impeditivos de segurança clínica (marcapasso em RM, clipes ferromagnéticos, alergia prévia grave a iodo). O sistema bloqueia o exame no banco e impede a liberação.
-4. **Calculadora de Dosagem de Meio de Contraste**:
-   - Cálculo automático por peso corpóreo (TC: 1.5 mL/kg, teto 150 mL; RM: 0.2 mL/kg, teto 25 mL) com registro obrigatório de lote para rastreabilidade ANVISA.
-5. **Arquivamento Digital Automático no Servidor de Rede**:
-   - Ao finalizar a triagem, o sistema compila uma ficha clínica oficial timbrada em HTML com cabeçalho institucional, dados demográficos, respostas do questionário, resultado do semáforo, lote do contraste e assinatura do operador.
-   - O documento é salvo automaticamente no compartilhamento de rede institucional:
+1. **Integração Direta com o ERP Hospitalar Oracle Tasy (`192.1.1.12:1521/tasytst`)**:
+   - **Fila Diária em Tempo Real (`TASY.IMI_EXAMES_DIA_FORM_V`)**: Lista os atendimentos do dia diretamente do Tasy, cruzando automaticamente com o banco MySQL local para exibir quais exames já foram triados, liberados ou bloqueados.
+   - **Sincronismo Oficial de Procedimentos (`TASY.IMI_EXAMES_PROC_INTERNO_V`)**: A associação de exames aos formulários de triagem é feita exclusivamente por busca direta no catálogo oficial do Tasy (por nome, código `CD_PROCEDIMENTO` ou sequência interna `NR_SEQUENCIA`), eliminando erros humanos de digitação e garantindo vínculo automático do protocolo ao iniciar a triagem.
+   - **Identificação Automática de Posto de Trabalho (Workstation)**: Reconhece o IP/Hostname da estação cliente e define automaticamente a sala operacional correspondente (ex.: `RM-01`, `TC-01`).
+
+2. **Questionários Clínicos Especializados e Expansíveis**:
+   - Carrega dinamicamente o protocolo anatômico vinculado ao exame do Tasy:
+     * **RM de Coluna (Cervical / Torácica / Lombar)**
+     * **RM de Braço / Antebraço (Membro Superior)**
+     * **RM de Bacia / Quadril (Articulação Coxofemoral)**
+     * **TC de Tórax com Contraste Iodado**
+     * **TC de Abdômen Total com Contraste**
+     * **Protocolos Customizados**: Painel administrativo permite criar novos protocolos anatômicos (ex.: *RM Crânio*, *RM Joelho*), ordenar a sequência das perguntas e vincular múltiplos procedimentos do Tasy.
+
+3. **Motor de Semáforo Clínico (Checklist da Aviação)**:
+   - 🟢 **VERDE (Liberado)**: Ausência de contraindicações. Exame apto para execução imediata.
+   - 🟡 **AMARELO (Alerta Operacional)**: Condições que exigem cautela ou orientação (ex.: suspensão de Metformina por 48h na TC, acolhimento/sedação para claustrofobia na RM, jejum parcial).
+   - 🔴 **VERMELHO (Bloqueio Absoluto de Segurança)**: Contraindicações impeditivas (marcapasso cardíaco não compatível, clipe de aneurisma cerebral, corpo estranho metálico ocular em RM ou histórico de anafilaxia grave a iodo em TC). **Bloqueia compulsoriamente a liberação do exame.**
+
+4. **Calculadora Farmacológica de Contraste com Trava de Teto Máximo**:
+   - **Tomografia (Contraste Iodado)**: $1,5\text{ mL/kg}$ com trava rígida em **$150\text{ mL}$** (prevenção de Nefropatia Induzida por Contraste).
+   - **Ressonância (Gadolínio)**: $0,2\text{ mL/kg}$ com trava rígida em **$25\text{ mL}$**.
+   - Registro obrigatório de **Lote do Contraste** para rastreabilidade sanitária (ANVISA).
+
+5. **Autenticação Corporativa Active Directory (LDAP) & Permissões Unificadas**:
+   - Autenticação integrada ao domínio institucional (`10.250.220.200:389` — grupo `GR_PROJ_FORMS`) com fallback para credenciais locais criptografadas via `BCrypt`.
+   - **Biomédicos (`BIOMEDICO`)**, **Técnicos de RM (`TECNICO`)** e **Estagiários (`ESTAGIARIO`)** compartilham as mesmas permissões operacionais clínicas (abrir ficha, preencher checklist, dosar contraste e assinar digitalmente), enquanto o perfil **`ADMIN`** gerencia operadores, salas, parâmetros e auditoria.
+
+6. **Emissão de Ficha Timbrada e Arquivamento em Rede (SMB)**:
+   - Ao finalizar a triagem, o sistema compila uma ficha clínica oficial em HTML timbrado e a grava automaticamente no compartilhamento de rede institucional:
      `\\fsa\anexos\IMI\Anexos_Formularios_PROJ\`
-   - O caminho físico completo é persistido na coluna `caminho_arquivo_armazenado` no banco de dados e registrado na trilha de auditoria.
-6. **Gestão Dinâmica de Protocolos Anatômicos & Inteligência TUSS/RIS em Tempo Real**:
-   - **Criação e Expansão Visual**: Administradores podem criar novos protocolos clínicos diretamente no painel (ex: `RM_CRANIO`, `TC_FACE`) definindo perguntas especializadas, criticidade de semáforo e regras impeditivas.
-   - **Auto-vinculação Inteligente de Formulário**: Ao digitar ou selecionar um código TUSS/TISS (ex: `41101153`), o sistema carrega instantaneamente o formulário clínico correspondente, modalidade e descrição, **bloqueando a edição manual** para assegurar conformidade médica com o catálogo.
-   - **Suporte a Múltiplos Exames com Mesmo TUSS**: Sem regras impeditivas de duplicidade na Worklist, permitindo que vários pacientes e laudos utilizem o mesmo código TUSS, refletindo a rotina real de clínicas e hospitais.
-   - **Fallback de Segurança Universal**: Se um exame for agendado com protocolo inédito ou não mapeado, o motor clínico aciona automaticamente as regras universais de segurança da modalidade (RM ou TC), garantindo zero travamentos e proteção máxima ao paciente.
+   - O caminho físico é salvo na coluna `caminho_arquivo_armazenado` no banco de dados e pode ser aberto/impresso diretamente pela grade da Worklist ou do painel Tasy.
 
 ---
 
-## 2. 💻 Tecnologias Utilizadas
+## 2. 🔄 Fluxo Completo da Aplicação (Ponta a Ponta)
 
-| Camada / Função | Tecnologia | Finalidade no Projeto |
-| :--- | :--- | :--- |
-| **Linguagem Principal** | C# 12 | Desenvolvimento orientado a objetos e regras de domínio ricas |
-| **Plataforma / Runtime** | .NET 8 (LTS) | Framework de alta performance para a Web API e CLI |
-| **Framework Web** | ASP.NET Core Web API | Criação de controllers RESTful, injeção de dependência e middlewares |
-| **Mapeamento Objeto-Relacional** | Entity Framework Core 8 | Mapeamento relacional com Fluent API e controle transacional |
-| **Bancos de Dados** | MySQL 8.0 & SQLite Portátil | Arquitetura Multi-Banco com auto-detecção por socket TCP |
-| **Documentação Interativa** | Swagger / OpenAPI v1 | Exploração e teste interativo de todos os endpoints HTTP |
-| **Criptografia / Segurança** | BCrypt.Net-Next | Hash irreversível de senhas de usuários operacionais |
-| **Framework de Testes** | xUnit & Moq | Execução de testes unitários de domínio, serviços e API |
-| **Frontend** | HTML5, Vanilla CSS3 & JavaScript (ES6+) | Interface responsiva Glassmorphism, atalhos de teclado e tema Dark/Light |
-| **Tipografia & Ícones** | Outfit, Plus Jakarta Sans, JetBrains Mono & FontAwesome 6 | Ergonomia visual e identificação de status clínicos |
+O diagrama abaixo demonstra o caminho percorrido pela informação desde a ação do usuário no navegador até os bancos de dados e o servidor de arquivos:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Op as Operador (Biomedico/Tecnico/Estagiario)
+    participant FE as Frontend SPA (JS/HTML5)
+    participant API as Web API (.NET 8)
+    participant Dom as Domain (Semaforo e Dose)
+    participant DB as Bancos (MySQL e Oracle Tasy)
+    participant SMB as Servidor de Rede (SMB)
+
+    Op->>FE: 1. Realiza Login (Active Directory LDAP ou Local)
+    FE->>API: POST /api/v1/auth/login
+    API->>DB: Valida credencial no AD/MySQL e grava Auditoria
+    DB-->>FE: Retorna Perfil e Sessao Ativa
+
+    Op->>FE: 2. Seleciona Paciente na Fila do Dia (Tasy / Worklist)
+    FE->>API: GET /api/v1/tasy/exames-dia e POST /api/v1/tasy/importar-exame
+    API->>DB: Sincroniza Atendimento, Seq. Interna e Paciente no MySQL
+    DB-->>FE: Abre Ficha com Protocolo Anatomico Vinculado
+
+    Op->>FE: 3. Preenche Checklist + Peso (kg) + Lote de Contraste
+    FE->>API: POST /api/v1/triagem/calcular-dose
+    API->>Dom: Calcula mL/kg e aplica Teto Maximo (150mL TC / 25mL RM)
+    Dom-->>FE: Retorna Volume Calculado, Volume Ajustado e Alertas
+
+    Op->>FE: 4. Assina Digitalmente e Conclui Triagem
+    FE->>API: POST /api/v1/triagem
+    API->>Dom: Avalia Semaforo Clinico (Verde / Amarelo / Vermelho)
+    API->>SMB: Compila e salva Ficha Oficial HTML na rede (\\fsa\anexos\...)
+    API->>DB: Salva FormularioTriagem, Respostas, StatusExame e Auditoria
+    DB-->>FE: Confirma Liberacao/Bloqueio e disponibiliza PDF/HTML
+```
 
 ---
 
-## 3. 🏗️ Estrutura do Projeto (Onion Architecture)
+## 3. 🏗️ Arquitetura do Sistema (Evolução: Onion Architecture + Clean Architecture)
 
-O projeto adota rigorosamente a **Onion Architecture (Arquitetura em Cebola)**, garantindo que o núcleo de regras de negócios e segurança clínica não dependa de frameworks ou bancos de dados externos:
+Ao longo do desenvolvimento, a arquitetura do projeto evoluiu: nasceu estruturada em **Onion Architecture (Arquitetura em Cebola)** para proteger o núcleo clínico e, com a entrada das integrações corporativas externas (Oracle Tasy, Active Directory LDAP e Servidor de Arquivos SMB), **passou a englobar também os padrões da Clean Architecture (Arquitetura Limpa)**:
+
+* **Herança da Onion Architecture:** O núcleo (`TriagemImagem.Domain`) permanece no centro absoluto com zero dependências externas, abrigando as Entidades, *Value Objects* (`Cpf`, `DoseContraste`) e o serviço de domínio puro (`SemaforoClinicoDomainService`).
+* **Evolução para Clean Architecture:** A camada `TriagemImagem.Application` passou a atuar como camada de **Casos de Uso (*Use Cases / Interactors*)**, definindo *Ports* (interfaces de saída como `IFileStorageService`) e DTOs estritos, enquanto a `TriagemImagem.Infrastructure` atua como camada de **Adaptadores Externos (*Adapters*)** para os bancos de dados (MySQL/SQLite e Oracle 19c), diretório de rede (LDAP) e sistema de arquivos (SMB), injetados via Inversão de Dependência (`ServiceCollectionExtensions`).
+
+```mermaid
+flowchart LR
+    subgraph CLIENTE ["1. Interface do Usuário (Presentation)"]
+        FE["🖥️ Frontend Web SPA<br/>(HTML5, CSS3, JS)"]
+    end
+
+    subgraph BACKEND ["2. Backend .NET 8 (Onion + Clean Architecture)"]
+        direction LR
+        API["🚪 Camada API<br/>(Entry Point / Controllers)<br/>Recebe chamadas HTTP"]
+        APP["⚙️ Camada Application<br/>(Use Cases & Ports)<br/>Orquestra fluxos e DTOs"]
+        DOM["🧠 Camada Domain<br/>(Enterprise Rules)<br/>Semáforo, Cálculo Dose & CPF"]
+        INF["🔌 Camada Infrastructure<br/>(External Adapters)<br/>EF Core, Tasy, LDAP & SMB"]
+
+        API -->|Aciona Use Case| APP
+        APP -->|Valida Regra Pura| DOM
+        APP -->|Consome Porta / Interface| INF
+    end
+
+    subgraph EXTERNOS ["3. Sistemas Hospitalares & Persistência"]
+        MYSQL[("🗄️ MySQL / SQLite<br/>(FormsDB - Triagens)")]
+        TASY[("🏥 Oracle 19c<br/>(ERP Tasy - Views)")]
+        LDAP["🔐 Active Directory<br/>(LDAP - GR_PROJ_FORMS)"]
+        SMB["📂 File Server SMB<br/>(\\fsa\anexos\IMI\...)"]
+    end
+
+    FE <-->|JSON / REST| API
+    INF <--> MYSQL
+    INF <--> TASY
+    INF <--> LDAP
+    INF <--> SMB
+```
+
+### Responsabilidade de Cada Camada:
+
+| Ordem | Camada / Projeto | O que ela faz na prática? |
+| :---: | :--- | :--- |
+| **1º** | **`frontend/` (Interface Web SPA)** | É a tela utilizada pelo Biomédico/Técnico. Exibe a fila do Tasy, o questionário clínico, o semáforo visual e envia as requisições JSON para a API. |
+| **2º** | **`TriagemImagem.Api` (Entrada HTTP)** | Recebe as chamadas do Frontend nos *Controllers* (`TasyController`, `TriagemController`, `WorklistController`, `AuthController`, `AdminController`), trata erros globalmente (`ExceptionHandlingMiddleware`) e expõe o Swagger. |
+| **3º** | **`TriagemImagem.Application` (Casos de Uso)** | Coordena o passo a passo de cada operação: recebe os DTOs da API, aciona o Domínio para validar as regras médicas, manda salvar no banco e gera o HTML timbrado da ficha (`RelatorioTriagemAppService`). |
+| **4º** | **`TriagemImagem.Domain` (Coração / Regras)** | Guarda as regras clínicas e matemáticas puras (sem depender de banco de dados): avalia o Semáforo Verde/Amarelo/Vermelho (`SemaforoClinicoDomainService`), aplica o teto de contraste (`DoseContraste`) e valida o `Cpf`. |
+| **5º** | **`TriagemImagem.Infrastructure` (Integrações)** | Conecta o sistema ao mundo externo: grava no **MySQL/SQLite** via Entity Framework Core, consulta as views do **Oracle Tasy** (`TasyService`), autentica no **Active Directory** (`LdapService`) e salva os arquivos na rede **SMB** (`FileStorageService`). |
+
+### Estrutura de Pastas do Projeto:
 
 ```text
 TriagemImagem.sln
 │
-├── TriagemImagem.Domain/            # 1. NÚCLEO DO DOMÍNIO (Sem dependências externas)
-│   ├── Entities/                    # Entidades (Usuario, Paciente, Exame, FormularioTriagem, WorklistLab)
-│   ├── ValueObjects/                # Objetos de Valor Imutáveis (Cpf, DoseContraste)
+├── TriagemImagem.Domain/            # Núcleo de Regras de Negócio (Zero dependências externas)
+│   ├── Configurations/              # LdapSettings, TasySettings, StorageSettings
+│   ├── Entities/                    # Usuario, Paciente, Exame, FormularioTriagem, AuditoriaLog...
+│   ├── ValueObjects/                # Cpf (Módulo 11), DoseContraste (Fórmulas e Tetos)
 │   ├── Enums/                       # StatusExame, StatusRiscoSemaforo, ModalidadeExame, PerfilUsuario
-│   ├── Exceptions/                  # DomainException (erros de regra de negócio)
-│   ├── Repositories/                # Contratos dos Repositórios (IExame, ITriagem, IWorklistLab, etc.)
-│   └── Services/                    # Regras puras do Semáforo Clínico (ISemaforoClinicoDomainService)
+│   ├── Exceptions/                  # DomainException
+│   ├── Repositories/                # Contratos (Interfaces) dos Repositórios
+│   └── Services/                    # SemaforoClinicoDomainService (Checklist da Aviação)
 │
-├── TriagemImagem.Application/       # 2. CAMADA DE APLICAÇÃO (Casos de Uso)
-│   ├── DTOs/                        # Request e Response DTOs de Auth, Worklist, Triagem e Auditoria
-│   ├── Interfaces/                  # Contratos de Serviços de Aplicação (ITriagemAppService, etc.)
-│   ├── Services/                    # TriagemAppService, WorklistAppService, RelatorioTriagemAppService
-│   ├── Validators/                  # TriagemValidator, DoseContrasteValidator
-│   └── Extensions/                  # Registro de dependências da aplicação
+├── TriagemImagem.Application/       # Casos de Uso e Orquestração
+│   ├── DTOs/                        # Objetos de transferência de dados (Request / Response)
+│   ├── Interfaces/                  # Contratos dos AppServices e IFileStorageService
+│   ├── Services/                    # TriagemAppService, WorklistAppService, RelatorioTriagemAppService...
+│   └── Validators/                  # Validações de entrada de triagem e contraste
 │
-├── TriagemImagem.Infrastructure/    # 3. CAMADA DE INFRAESTRUTURA (Persistência Externa)
-│   ├── Data/
-│   │   ├── Context/                 # AppDbContext (Banco 1) e WorklistLabDbContext (Banco 2)
-│   │   ├── Configurations/          # Mapeamento Fluent API das entidades
-│   │   └── Context/DbSeeder.cs      # Carga inicial automatizada de dados
-│   ├── Repositories/                # Implementações EF Core dos repositórios
-│   └── Extensions/                  # Registro de repositórios e contextos na DI
+├── TriagemImagem.Infrastructure/    # Persistência e Integrações Corporativas
+│   ├── Data/                        # AppDbContext, WorklistLabDbContext, Fluent API, DbSeeder
+│   ├── Repositories/                # Repositórios EF Core (MySQL / SQLite)
+│   └── Services/                    # TasyService (Oracle), LdapService (AD), FileStorageService (SMB)
 │
-├── TriagemImagem.Api/               # 4. CAMADA DE ENTRADA HTTP (Web API REST)
-│   ├── Controllers/                 # AuthController, WorklistController, TriagemController, AdminController, DatabaseHealthController
-│   ├── Middlewares/                 # ExceptionHandlingMiddleware (captura global de DomainException -> 400)
-│   ├── appsettings.json             # Strings de conexão dos Bancos 1 e 2
-│   └── Program.cs                   # Pipeline ASP.NET Core, CORS, Swagger e inicialização de bancos
+├── TriagemImagem.Api/               # Camada Web API RESTful (.NET 8)
+│   ├── Controllers/                 # Auth, Tasy, Worklist, Triagem, Admin, Auditoria, DatabaseHealth
+│   ├── Middlewares/                 # ExceptionHandlingMiddleware
+│   └── Program.cs                   # Inicialização, Auto-detecção de Banco, CORS e Swagger
 │
-├── TriagemImagem.Tests/             # 5. TESTES AUTOMATIZADOS (58 Testes xUnit)
-│   ├── Domain/                      # Testes de CPF, Dose de Contraste e Semáforo Clínico (22 testes)
-│   ├── Application/                 # Testes de casos de uso, CRUD Admin, Laudos e Worklist (26 testes)
-│   └── Api/                         # Testes de integração dos endpoints REST (10 testes)
+├── TriagemImagem.Tests/             # Suíte com 60+ Testes Automatizados (xUnit, Moq, FluentAssertions)
+│   ├── Domain/                      # Testes de CPF, Dose de Contraste e Semáforo Clínico
+│   ├── Application/                 # Testes de Serviços, Laudos HTML e Regras de Worklist
+│   ├── Api/                         # Testes de Integração HTTP dos Endpoints REST
+│   └── Services/                    # Testes de conectividade Oracle Tasy e Storage SMB
 │
-├── schema.sql                       # Script DDL do Banco de Dados 1 (Triagem da Aplicação)
-├── schema_worklist_lab.sql          # Script DDL do Banco de Dados 2 (Worklist do Laboratório)
+├── frontend/                        # Aplicação Web SPA (Glassmorphism Dark/Light)
+│   ├── css/style.css                # Estilização responsiva e temas visuais
+│   ├── js/api.js                    # Cliente HTTP REST integrado à API .NET
+│   ├── js/app.js                    # Estado da aplicação, integração Tasy e painel Admin
+│   └── index.html                   # Interface única do posto de triagem
 │
-└── frontend/                        # 6. POSTO DE TRABALHO CLÍNICO (Interface Web)
-    ├── css/style.css                # Folha de estilo Glassmorphism Dark/Light
-    ├── js/api.js                    # Cliente HTTP integrado à API .NET
-    ├── js/app.js                    # Lógica da tela, atalhos de teclado e integração multi-banco
-    └── index.html                   # Página única (SPA) do posto de triagem
+├── schema_producao.sql              # Script DDL unificado para MySQL de produção (FormsDB)
+└── deploy.ps1                       # Pipeline automatizado de build Linux-x64 e deploy via SSH/PM2
 ```
 
 ---
 
-## 4. ⚙️ Configuração do Ambiente
+## 4. 🗄️ Modelagem do Banco de Dados
 
-### Pré-requisitos:
-* [.NET 8 SDK (versão 8.0.400 ou superior)](https://dotnet.microsoft.com/download/dotnet/8.0);
-* Qualquer navegador web moderno (Google Chrome, Microsoft Edge, Firefox, Brave).
-
-### Mecanismo de Auto-Detecção e Resiliência (Zero Config):
-O sistema possui inteligência de inicialização no [Program.cs](file:///c:/Projetos/ProjetoFaculdade/TriagemImagem.Api/Program.cs):
-* Ao iniciar, a API executa um teste de socket TCP na porta `3306` do `localhost`:
-  * **Se o MySQL estiver ativo**: Conecta automaticamente nos bancos `triagem_imagem_db` e `worklist_lab_db`.
-  * **Se o MySQL estiver ausente ou offline**: A API faz fallback imediato e transparente para o **SQLite Portátil** gerando localmente os bancos `triagem_imagem.db` e `worklist_lab.db`, executando a carga de dados (seed) sem que o avaliador precise instalar ou configurar servidores externos.
-
----
-
-## 5. 🗄️ Arquitetura Multi-Banco de Dados
-
-Para reproduzir a interoperabilidade real entre o sistema hospitalar (HIS/RIS) e o posto clínico de triagem, a aplicação opera com **dois bancos de dados desacoplados**:
+O banco relacional principal (`FormsDB` no MySQL / `triagem_imagem.db` em modo portátil SQLite) armazena todo o histórico clínico e de auditoria, trabalhando em conjunto com as views do **Oracle Tasy**:
 
 ```mermaid
-graph LR
-    subgraph BANCO_2 ["Banco de Dados 2: Worklist Laboratorial (HIS/RIS)"]
-        W1[worklist_pacientes]
-        W2[worklist_pedidos_exames]
-    end
+erDiagram
+    USUARIOS ||--o{ FORMULARIOS_TRIAGEM : "assina"
+    USUARIOS ||--o{ AUDITORIA_LOGS : "gera"
+    PACIENTES ||--o{ EXAMES : "possui"
+    EXAMES ||--|| FORMULARIOS_TRIAGEM : "origina"
+    FORMULARIOS_TRIAGEM ||--|{ ITENS_RESPOSTA_TRIAGEM : "contem"
+    WORKLIST_PACIENTES ||--o{ WORKLIST_PEDIDOS_EXAMES : "agenda"
 
-    subgraph API [API .NET 8 - Estação de Triagem]
-        C1[WorklistController]
-        C2[TriagemController]
-        C3[RelatorioService]
-    end
+    USUARIOS {
+        int id PK
+        varchar nome
+        varchar login UK
+        varchar senha_usuario
+        enum perfil "ESTAGIARIO, TECNICO, BIOMEDICO, ADMIN"
+        boolean status_usuario
+        datetime criado_em
+    }
 
-    subgraph BANCO_1 ["Banco de Dados 1: Aplicação de Triagem"]
-        B1[usuarios]
-        B2[pacientes]
-        B3[exames]
-        B4[formularios_triagem]
-        B5[itens_resposta_triagem]
-        B6[auditoria_logs]
-    end
+    PACIENTES {
+        int id PK
+        varchar documento_cpf UK
+        varchar nome_completo
+        date data_nascimento
+        enum sexo "M, F, O"
+        decimal peso_kg
+        int altura_cm
+    }
 
-    subgraph DISCO ["Diretório Documentos"]
-        D1[Ficha_Triagem_Atendimento.html]
-    end
+    EXAMES {
+        int id PK
+        int paciente_id FK
+        int atendimento
+        varchar codigo_procedimento
+        int sequencia_interna
+        varchar descricao_exame
+        enum modalidade "TC, RM"
+        varchar tipo_formulario
+        varchar sala
+        datetime horario_agendado
+        enum status "AGUARDANDO_TRIAGEM, EM_TRIAGEM, LIBERADO, BLOQUEADO_SEGURANCA"
+    }
 
-    W2 -->|1. Consulta Agendamento & Tipo de Form| C1
-    C1 -->|2. Carrega Exame na Tela| API
-    C2 -->|3. Persiste Respostas & Semáforo| B4
-    C2 -->|4. Registra Auditoria| B6
-    C3 -->|5. Gera Ficha Timbrada| D1
-    D1 -.->|6. Grava Caminho Físico| B4
+    FORMULARIOS_TRIAGEM {
+        int id PK
+        int exame_id FK
+        int usuario_responsavel_id FK
+        decimal volume_contraste_ml
+        varchar lote_contraste
+        varchar caminho_arquivo_armazenado
+        enum status_risco "VERDE, AMARELO, VERMELHO"
+        text observacoes_clinicas
+        datetime iniciado_em
+        datetime finalizado_em
+    }
+
+    ITENS_RESPOSTA_TRIAGEM {
+        int id PK
+        int formulario_id FK
+        varchar codigo_pergunta
+        varchar pergunta_enunciado
+        varchar resposta_valor
+        boolean impeditivo
+        varchar justificativa
+    }
+
+    AUDITORIA_LOGS {
+        int id PK
+        int usuario_id FK
+        int exame_id
+        varchar tipo_evento
+        text detalhes
+        varchar ip_origem
+        datetime criado_em
+    }
 ```
 
-### Tabelas do Banco de Dados 1 (`triagem_imagem.db` / `triagem_imagem_db`):
-* `usuarios`: Operadores cadastrados (nome, login, senha com hash, perfil, status).
-* `pacientes`: Cadastro demográfico (CPF, nome, nascimento, sexo, peso, altura).
-* `exames`: Fila operacional do posto de atendimento, sala, horário, procedimento e status de liberação.
-* `formularios_triagem`: Cabeçalho da sessão de triagem, status do semáforo, volume de contraste, lote e a coluna **`caminho_arquivo_armazenado`**.
-* `itens_resposta_triagem`: Respostas detalhadas de cada questão com indicação de criticidade impeditiva.
-* `auditoria_logs`: Histórico inviolável de rastreabilidade (quem realizou cada ação, quando e qual foi o resultado).
-
-### Tabelas do Banco de Dados 2 (`worklist_lab.db` / `worklist_lab_db`):
-* `worklist_pacientes`: Cadastro de pacientes do convênio/laboratório.
-* `worklist_pedidos_exames`: Pedidos médicos agendados contendo `tipo_formulario` (`RM_COLUNA`, `RM_BRACO_ANTEBRACO`, `RM_BACIA_QUADRIL`, `TC_TORAX`, `TC_ABDOMEN`), `segmento_lado`, médico solicitante, CRM e convênio.
-
 ---
 
-## 6. 🔐 Autenticação e Perfis de Acesso
+## 5. 📡 Principais Endpoints da API RESTful
 
-A autenticação é efetuada via `POST /api/v1/auth/login`. Para avaliação da banca examinadora, os seguintes usuários já estão pré-configurados no banco de dados:
+A documentação interativa **Swagger OpenAPI** está disponível em `/swagger` (ex.: `https://formularios.imi.local/swagger` ou `http://localhost:5000/swagger`):
 
-| Perfil de Acesso | Login | Senha | Permissões no Sistema |
-| :--- | :--- | :--- | :--- |
-| **Biomédico(a)** | `lucas.biomed` | `123456` | Acesso total: Realizar triagem, calcular dose de contraste, liberar exames e registrar bloqueios de segurança. |
-| **Técnico(a) em Radiologia** | `mariana.tec` | `123456` | Operação diária: Chamar pacientes da fila, preencher checklists clínicos e salvar rascunhos. |
-| **Administrador** | `admin` | `123456` | Gestão clínica: Visualizar relatórios e consultar trilha inviolável de auditoria. |
-
----
-
-## 7. 📡 Endpoints da API RESTful
-
-A documentação interativa Swagger pode ser acessada em: **`http://localhost:5000/swagger`**
-
-| Módulo | Método | Rota | Descrição |
+| Módulo | Método | Rota | Finalidade |
 | :--- | :---: | :--- | :--- |
-| **Autenticação** | `POST` | `/api/v1/auth/login` | Autentica o operador e retorna dados de perfil |
-| **Worklist** | `GET` | `/api/v1/worklist` | Lista agendamentos do dia com filtros e busca |
-| **Worklist** | `GET` | `/api/v1/worklist/{id}` | Obtém detalhes completos de um exame |
-| **Worklist** | `POST` | `/api/v1/worklist/{id}/chamar` | Registra a chamada do paciente para a sala |
-| **Banco 2 (Lab)** | `GET` | `/api/v1/worklist/laboratorio` | Consulta direta aos pedidos do Banco 2 do laboratório |
-| **Triagem** | `POST` | `/api/v1/triagem` | Salva a triagem, avalia semáforo e gera relatório em `Documentos` |
-| **Triagem** | `GET` | `/api/v1/triagem/exame/{exameId}` | Consulta o formulário de triagem de um exame |
-| **Triagem** | `POST` | `/api/v1/triagem/calcular-dose` | Calcula dosagem clínica de contraste (TC/RM) |
-| **Triagem** | `POST` | `/api/v1/triagem/{id}/liberar` | Libera o exame para execução no tomógrafo/ressonância |
-| **Triagem** | `POST` | `/api/v1/triagem/{id}/cancelar` | Bloqueia/Cancela o exame por contraindicação clínica |
-| **Auditoria** | `GET` | `/api/v1/auditoria?limite=50` | Retorna o log de rastreabilidade e auditoria |
-| **Diagnóstico** | `GET` | `/api/v1/database/status` | Exibe a integridade e métricas dos Bancos 1 e 2 |
-| **Admin (Exames)** | `POST` | `/api/v1/admin/exames` | Cadastra novo exame na fila com validação estrita de TUSS/RIS |
-| **Admin (Exames)** | `PUT` | `/api/v1/admin/exames/{id}` | Edita dados do exame e paciente com recálculo automático de contraste |
-| **Admin (Exames)** | `DELETE` | `/api/v1/admin/exames/{id}` | Exclui exame com limpeza em cascata e log de auditoria |
-| **Admin (Fila)** | `POST` | `/api/v1/admin/exames/sincronizar-datas` | Sincroniza todas as datas dos exames para o dia de hoje |
-| **Admin (Fila)** | `POST` | `/api/v1/admin/exames/{id}/resetar` | Reseta status do exame para AGUARDANDO_TRIAGEM |
-| **Admin (Fila)** | `POST` | `/api/v1/admin/exames/{id}/transferir-sala` | Transfere exame para outra sala operacional |
-| **Admin (Usuários)**| `POST` | `/api/v1/admin/usuarios` | Cadastra novo operador com senha criptografada BCrypt |
-| **Admin (Usuários)**| `POST` | `/api/v1/admin/usuarios/{id}/reset-senha` | Reseta senha de operador para o padrão inicial |
+| **Autenticação** | `POST` | `/api/v1/auth/login` | Autentica o operador via Active Directory (LDAP) ou banco local (BCrypt). |
+| **Autenticação** | `GET` | `/api/v1/auth/ldap/status` | Verifica conectividade com o servidor LDAP e existência do grupo `GR_PROJ_FORMS`. |
+| **Oracle Tasy** | `GET` | `/api/v1/tasy/status` | Testa conexão e latência com o Oracle 19c e total de procedimentos na view. |
+| **Oracle Tasy** | `GET` | `/api/v1/tasy/procedimentos` | Pesquisa procedimentos em `TASY.IMI_EXAMES_PROC_INTERNO_V` por nome, código ou sequência. |
+| **Oracle Tasy** | `GET` | `/api/v1/tasy/exames-dia` | Consulta exames do dia em `TASY.IMI_EXAMES_DIA_FORM_V` cruzando status com o MySQL local. |
+| **Oracle Tasy** | `POST` | `/api/v1/tasy/importar-exame` | Importa e sincroniza um exame do Tasy para a base local de triagem. |
+| **Oracle Tasy** | `GET` | `/api/v1/tasy/workstation` | Detecta IP/Hostname da estação e retorna a sala mapeada (`RM-01`, `TC-01`). |
+| **Worklist** | `GET` | `/api/v1/worklist` | Lista agendamentos locais com filtros por modalidade, status e busca textual. |
+| **Worklist** | `POST` | `/api/v1/worklist/{id}/chamar` | Registra chamada do paciente para a cabine e grava log de auditoria. |
+| **Triagem** | `POST` | `/api/v1/triagem/calcular-dose` | Calcula dosagem clínica de contraste (TC/RM) aplicando tetos de segurança. |
+| **Triagem** | `POST` | `/api/v1/triagem` | Processa o checklist, avalia o Semáforo Clínico e salva a ficha HTML no servidor SMB. |
+| **Triagem** | `GET` | `/api/v1/triagem/exame/{exameId}` | Obtém os dados e respostas de uma triagem realizada ou em rascunho. |
+| **Admin** | `POST/PUT/DELETE` | `/api/v1/admin/exames...` | Gestão operacional da grade, edição, transferência de sala e reset de status. |
+| **Admin** | `GET/POST` | `/api/v1/admin/usuarios...` | Cadastro de operadores, ativação/inativação e reset de senha. |
+| **Auditoria** | `GET` | `/api/v1/auditoria` | Consulta a trilha de auditoria operacional completa. |
+| **Diagnóstico** | `GET` | `/api/v1/database/status` | Painel consolidado de saúde dos bancos (MySQL, Worklist Lab, Oracle Tasy e SMB). |
 
 ---
 
-## 8. 🚀 Instruções para Execução do Projeto
+## 6. 💻 Tecnologias Utilizadas
 
-### Passo 1: Executar a API (.NET 8)
-Abra o terminal na pasta raiz do projeto (`c:\Projetos\ProjetoFaculdade`) e execute:
+| Categoria | Tecnologia | Finalidade |
+| :--- | :--- | :--- |
+| **Backend & Runtime** | **C# 12 / .NET 8 (LTS)** | Construção da Web API RESTful e regras de domínio orientadas a objetos. |
+| **ORM & Bancos de Dados** | **EF Core 8 (MySQL / SQLite) & Oracle ManagedDataAccess** | Persistência relacional no MySQL (`FormsDB`), fallback SQLite e leitura no Oracle 19c (Tasy). |
+| **Segurança & Diretório** | **LDAP (`System.DirectoryServices.Protocols`) & BCrypt.Net** | Autenticação corporativa no Active Directory e hash criptográfico irreversível. |
+| **Frontend** | **HTML5, CSS3 (Glassmorphism) & Vanilla JavaScript (ES6+)** | Interface clínica responsiva, suporte Dark/Light Mode e atalhos de teclado. |
+| **Qualidade & Testes** | **xUnit, Moq, FluentAssertions & Swagger OpenAPI** | Mais de 60 testes automatizados de unidade/integração e documentação viva da API. |
+| **Infraestrutura & Deploy** | **Linux (CloudPanel), Nginx, PM2, SMB & PowerShell** | Hospedagem com proxy reverso HTTPS (`formularios.imi.local`), arquivamento em rede e deploy automatizado. |
+
+---
+
+## 7. 🚀 Como Executar e Testar o Projeto
+
+### 1. Executar Localmente
+O sistema conta com **Auto-Detecção de Banco de Dados (Zero-Config)**: se o MySQL não estiver acessível localmente, ele cria e popula automaticamente os bancos em **SQLite Portátil**.
 
 ```powershell
 dotnet run --project TriagemImagem.Api --urls "http://localhost:5000"
 ```
+Acesse no navegador: **`http://localhost:5000`** (ou **`http://localhost:5000/swagger`** para o Swagger).
 
-A API iniciará, conectará aos bancos de dados (ou criará os arquivos SQLite caso o MySQL não esteja rodando) e exibirá:
-```text
-info: Program[0] Banco de Dados 1 (Triagem) pronto para uso (SQLite Portátil).
-info: Program[0] Banco de Dados 2 (Worklist Lab) pronto para uso (SQLite Portátil).
-info: Microsoft.Hosting.Lifetime[14] Now listening on: http://localhost:5000
-```
-
-### Passo 2: Executar a Bateria de Testes Automatizados
-Em outra janela de terminal, execute:
-
+### 2. Executar a Suíte de Testes Automatizados
 ```powershell
 dotnet test
 ```
 
-*Resultado esperado:* **Aprovado! 58 testes executados com 100% de sucesso.**
+### 3. Publicar em Produção (Servidor Linux CloudPanel)
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy.ps1
+```
 
-### Passo 3: Abrir a Interface Web (Frontend)
-Basta abrir o arquivo **`frontend/index.html`** em qualquer navegador (dando duplo clique no arquivo ou via extensão *Live Server* do VS Code).
+### 4. Credenciais Locais de Demonstração (Fallback / Homologação)
+Além do login corporativo via Active Directory (LDAP), os seguintes usuários locais estão disponíveis para avaliação:
 
-O badge no canto superior direito indicará:
-`🟢 API .NET Online (Bancos 1 & 2 Conectados)`.
-
----
-
-## 9. 📖 Guia de Utilização da Aplicação
-
-### 1. Login e Acesso
-* Clique em qualquer um dos botões de preenchimento rápido (ex: **Biomédico**) e confirme em **Entrar no Sistema**.
-
-### 2. Navegação na Worklist do Dia
-* A tela inicial exibe a lista de pacientes agendados.
-* Utilize a busca em tempo real por **Nome do Paciente**, **CPF**, **Número de Atendimento** ou **Sala**.
-* Clique nos filtros rápidos (**Tomografia**, **Ressonância**, **Aguardando**, **Liberados**).
-* Para inspecionar a integração com o banco hospitalar externo, clique no botão **"Banco 2 (HIS-RIS Lab)"**: um modal exibirá os dados brutos vindos do sistema de agendamento com os tipos de formulário especializados.
-
-### 3. Abertura da Triagem e Reconhecimento Automático de Formulário
-* Clique em **Iniciar Triagem** em qualquer agendamento:
-  * Exame **#104520 (Fernanda Lima Rocha)**: Carrega automaticamente o **Questionário de RM de Coluna** (Lombar).
-  * Exame **#104521 (Carlos Eduardo Mendes)**: Carrega automaticamente o **Questionário de RM de Braço/Antebraço** (Direito).
-  * Exame **#104522 (Maria Aparecida Souza)**: Carrega automaticamente o **Questionário de RM de Bacia/Quadril** (Esquerdo).
-  * Exame **#104523 (João Carlos de Oliveira)**: Carrega o **Checklist de Tomografia de Tórax com Contraste**.
-
-### 4. Ergonomia Operacional e Atalhos Rápidos
-Para maximizar a produtividade do operador no posto clínico:
-* **Tecla `[1]`**: Marca a resposta **NÃO** para a pergunta selecionada e salta para a próxima.
-* **Tecla `[2]`**: Marca a resposta **SIM** para a pergunta selecionada e salta para a próxima.
-* **Tecla `[Tab]`**: Avança entre as perguntas do questionário.
-
-### 5. Semáforo Clínico em Tempo Real
-* Respostas a itens impeditivos (ex: *Marcapasso cardíaco*, *Clipes de aneurisma ferromagnéticos* ou *Choque alérgico prévio a iodo*) acionam imediatamente o **Semáforo Vermelho de Bloqueio Absoluto**.
-* Nesses casos, o botão de liberação é bloqueado, garantindo conformidade com a segurança do paciente.
-
-### 6. Finalização e Arquivamento em Rede
-* Ao clicar em **"Liberar Exame com Segurança"**:
-  1. A triagem é persistida no Banco de Dados 1;
-  2. O status do exame é atualizado para `LIBERADO`;
-  3. A ficha clínica timbrada oficial é compilada e gravada em:
-     `\\fsa\anexos\IMI\Anexos_Formularios_PROJ\`
-  4. Um modal de confirmação exibe o caminho exato gravado em disco com a opção de **Imprimir Laudo**.
-
-### 7. Gestão Dinâmica de Protocolos Anatômicos & Inteligência TUSS/RIS em Tempo Real
-* **Painel Administrativo (`admin`)**:
-  * **Criação de Protocolos Anatômicos (`+ Novo Protocolo Anatômico`)**: Permite cadastrar regiões anatômicas customizadas (ex: *RM Crânio*, *RM Joelho*, *TC Face*) configurando perguntas clínicas específicas, classificação de Semáforo (🔴 Impeditiva, 🟡 Alerta, 🟢 Informativa) e regras de justificativa radiológica.
-  * **Auto-vinculação Inteligente de Formulário em Tempo Real**:
-    * Ao abrir o modal de agendamento e selecionar ou digitar um código TUSS/TISS (ex: `41101153` para Cervical ou `41001095` para Tórax), o sistema atualiza em tempo real o formulário clínico, modalidade e descrição.
-    * Os campos vinculados são **bloqueados para edição manual**, garantindo integridade clínica e prevenindo seleções incorretas.
-    * O sistema permite múltiplos agendamentos e laudos com o mesmo código TUSS (sem restrição indevida de duplicidade), espelhando o fluxo real dos sistemas HIS/RIS.
-  * **Edição e Exclusão Segura de Exames**: Botões com design dark ergonômico no painel para editar dados do paciente (com recálculo de dose de contraste) ou excluir agendamentos com limpeza em cascata e registro em auditoria.
-  * **Fallback Universal de Contingência**: Caso qualquer exame na fila possua protocolo não mapeado, o sistema executa automaticamente o checklist de segurança base da modalidade, evitando falhas de execução e assegurando a checagem obrigatória contra riscos magnéticos ou nefrotóxicos.
+| Perfil | Login | Senha | Permissões |
+| :--- | :--- | :--- | :--- |
+| **Biomédico(a)** | `lucas.biomed` | `123456` | Operação clínica completa: triar, calcular dose, assinar e liberar/bloquear exames. |
+| **Técnico(a) em RM** | `mariana.tec` | `123456` | Operação clínica completa: triar, calcular dose, assinar e liberar/bloquear exames. |
+| **Estagiário(a)** | `gabriel.estagio` | `123456` | Operação clínica completa: triar, calcular dose, assinar e liberar/bloquear exames. |
+| **Administrador** | `admin` | `123456` | Acesso total + Painel Administrativo (gestão de usuários, salas, protocolos Tasy e auditoria). |
